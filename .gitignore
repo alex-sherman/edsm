@@ -1,0 +1,6 @@
+edsm/*Makefile
+*.cmake
+CMakeCache.txt
+*.a
+esdm/test/test
+CMakeFiles
