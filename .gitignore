@@ -2,6 +2,7 @@ Makefile
 *.cmake
 CMakeCache.txt
 CMakeFiles
+*.so
 *.a
 test/test
 zmq/client

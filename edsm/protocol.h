@@ -4,8 +4,16 @@
 #include <stdint.h>
 #include "message.h"
 
-int peer_send(int peer, struct message * msg);
-int peer_receive(int * out_peer, struct message * out_msg);
+struct peer_information
+{
+    int id;
+    //TODO: Information regarding how to connect to the peer
+};
+
+
+struct peer_information *peer_get(int peer_id);
+int peer_send(int peer_id, struct message * msg);
+int peer_receive(int * out_peer_id, struct message * out_msg);
 int group_join(uint32_t ip);
 int group_leave();
 
