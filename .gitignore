@@ -1,6 +1,8 @@
-edsm/*Makefile
+Makefile
 *.cmake
 CMakeCache.txt
-*.a
-esdm/test/test
 CMakeFiles
+*.a
+test/test
+zmq/client
+zmq/server
