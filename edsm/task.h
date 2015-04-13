@@ -1,6 +1,9 @@
 #ifndef TASK_H
 #define TASK_H
 
+#include <pthread.h>
+#include <uthash.h>
+
 struct task_information;
 
 typedef int (*f_task_add_thread)(struct task_information *, int, char *, const char *, ...);
@@ -12,6 +15,7 @@ struct task_information
 {
     int id;
     const char *name;
+    pthread_t thread;
     //Provided by the task
     f_task_run run;
     f_task_start_thread start_thread;

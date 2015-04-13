@@ -6,6 +6,7 @@
 
 int test_link_task(){
     struct task_information *task = task_link("Test Task", "./libtest_task.so");
+    pthread_join(task->thread, 0);
     DEBUG_MSG("Task data %s", (char *)task->data);
     return task == NULL ? FAILURE : SUCCESS;
 }

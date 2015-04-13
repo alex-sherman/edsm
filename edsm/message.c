@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "debug.h"
 #include "message.h"
 #include "timing.h"
 
@@ -28,6 +29,26 @@ struct message *alloc_message(int head_size, int tail_size)
     msg->next = NULL;
     
     return msg;
+}
+
+int message_resize(struct message *msg, int new_head_size, int new_tail_size)
+{
+    char *old_buffer = msg->buffer;
+    int old_buffer_size = msg->buffer_size;
+    int old_head_size = msg->head_size;
+
+    msg->buffer_size = new_head_size + new_tail_size;
+    msg->buffer = malloc(msg->buffer_size);
+    if (!msg->buffer) {
+        free_message(msg);
+        return FAILURE;
+    }
+    int cpy_dst_start = new_head_size > old_head_size ? new_head_size - old_head_size : 0;
+    int cpy_src_start = new_head_size > old_head_size ? 0 : old_head_size - new_head_size;
+    int cpy_size = msg->buffer_size > old_buffer_size ? msg->buffer_size : old_buffer_size;
+    memcpy(&msg->buffer[cpy_dst_start], &old_buffer[cpy_src_start], cpy_size);
+    free(old_buffer);
+    return SUCCESS;
 }
 
 struct message *clone_message(struct message *msg)
@@ -96,6 +117,18 @@ void message_pull_tail(struct message *msg, int bytes)
     msg->data_size -= bytes;
 }
 
+int message_write(struct message *msg, void *data, int bytes)
+{
+    if(!msg->tail_size > bytes){
+        message_resize(msg, msg->head_size, msg->buffer_size > bytes ? msg->buffer_size * 2 : bytes * 2);
+    }
+    else
+    {
+        memcpy(&msg->data[msg->data_size], data, bytes);
+        message_put(msg, bytes);
+    }
+    return SUCCESS;
+}
 
 int message_queue_append(struct message **tx_queue_head, struct message **tx_queue_tail, struct message *msg)
 {

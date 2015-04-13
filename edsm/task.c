@@ -39,10 +39,20 @@ struct task_information *task_link(const char *name, char *path)
     struct task_information* task = malloc(sizeof(struct task_information));
     memset(task, 0, sizeof(struct task_information));
 
+
     task->run = run;
     task->start_thread = start_thread;
 
-    task->run(task);
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
+
+    if(pthread_create(&task->thread, &attr, (void * (*)(void *))task->run, task)) {
+        ERROR_MSG("Error creating thread");
+        free(task);
+        return NULL;
+    }
+    pthread_attr_destroy(&attr);
 
     return task;
 }
