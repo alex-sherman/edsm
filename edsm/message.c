@@ -48,6 +48,8 @@ int message_resize(struct message *msg, int new_head_size, int new_tail_size)
     int cpy_size = msg->buffer_size > old_buffer_size ? msg->buffer_size : old_buffer_size;
     memcpy(&msg->buffer[cpy_dst_start], &old_buffer[cpy_src_start], cpy_size);
     free(old_buffer);
+    msg->tail_size = new_tail_size;
+    msg->head_size = new_head_size;
     return SUCCESS;
 }
 
@@ -119,14 +121,21 @@ void message_pull_tail(struct message *msg, int bytes)
 
 int message_write(struct message *msg, void *data, int bytes)
 {
-    if(!msg->tail_size > bytes){
+    if(!(msg->tail_size > bytes)){
         message_resize(msg, msg->head_size, msg->buffer_size > bytes ? msg->buffer_size * 2 : bytes * 2);
     }
-    else
+    memcpy(&msg->data[msg->data_size], data, bytes);
+    message_put(msg, bytes);
+    return SUCCESS;
+}
+int message_read(struct message *msg, void *dst, int bytes)
+{
+    if(!msg->data_size > bytes)
     {
-        memcpy(&msg->data[msg->data_size], data, bytes);
-        message_put(msg, bytes);
+        return FAILURE;
     }
+    memcpy(dst, msg->data, bytes);
+    message_pull(msg, bytes);
     return SUCCESS;
 }
 

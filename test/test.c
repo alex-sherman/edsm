@@ -13,12 +13,17 @@ typedef struct test_obj
 } test_obj;
 
 int test_link_task();
+int test_message_read_write();
 
 
 int main(int argc, char *argv[])
 {
     test_obj link_task_test = {.func = test_link_task, .name = "Link Task"};
-    test_obj tests[1] = { link_task_test };
+    test_obj message_read_write_test = {.func = test_message_read_write, .name = "Message Read Write"};
+    test_obj tests[2] = {
+        link_task_test,
+        message_read_write_test
+    };
 
     for(int i = 0; i < sizeof(tests) / sizeof(test_obj); i++)
     {
