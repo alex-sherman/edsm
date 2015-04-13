@@ -5,7 +5,7 @@
 #include "debug.h"
 
 int test_link_task(){
-    struct task_information *task = task_link("Test Task", "./libtest_task.so");
+    struct task_information *task = task_link("Test Task", "./task_test.so");
     pthread_join(task->thread, 0);
     DEBUG_MSG("Task data %s", (char *)task->data);
     return task == NULL ? FAILURE : SUCCESS;
@@ -17,6 +17,7 @@ extern int run(struct task_information *task)
     memcpy(herp, "Herp", 5);
     task->data = herp;
     task_add_thread(task, 0, "fake", "");
+    DEBUG_MSG("Test task started");
     return SUCCESS;
 }
 
