@@ -13,6 +13,7 @@ int main(int argc, char **argv)
         printf("Usage: edsmd <task directory> [group hostname]\n");
         exit(0);
     }
+    protocol_listener_init();
     if(argc > 2){
         if(group_join(argv[2]) == FAILURE)
         {

@@ -2,18 +2,24 @@
 #define PROTOCOL_H
 
 #include <stdint.h>
+#include <pthread.h>
+#include "zmq.h"
 #include "uthash.h"
 #include "message.h"
 
 struct peer_information
 {
-    int id;
-    //TODO: Information regarding how to connect to the peer
+    char *uuid;
+    void *zmq_dealer; //socket to use for outgoing messages to the peer
 
     UT_hash_handle hh;
 };
 
 struct peer_information *peers;
+void *zmq_context;
+
+void protocol_listener_init();
+void *msg_wait();
 
 struct peer_information *peer_get(int peer_id);
 int peer_add(struct peer_information);
