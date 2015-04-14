@@ -1,4 +1,4 @@
-add_library(libedsm SHARED
+add_library(edsm SHARED
     debug.c
     message.c
     protocol.c
@@ -7,12 +7,12 @@ add_library(libedsm SHARED
     timing.c
 )
 
-target_include_directories (libedsm PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(libedsm dl pthread)
+target_include_directories (edsm PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(edsm dl pthread)
 
 
 add_executable(edsmd
     edsmd.c
 )
 
-target_link_libraries(edsmd libedsm)
+target_link_libraries(edsmd edsm)

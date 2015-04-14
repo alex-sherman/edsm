@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <edsm.h>
+#include <jrpc.h>
 
 #include "debug.h"
 
@@ -11,13 +12,18 @@ int test_link_task(){
     return task == NULL ? FAILURE : SUCCESS;
 }
 
+extern json_object *start_job(json_object *params)
+{
+    //task_add_thread(task, 0, "fake", "");
+    DEBUG_MSG("Test task started");
+    return json_object_array_get_idx(params, 0);
+}
+
 extern int run(struct task_information *task)
 {
-    char * herp = malloc(100 * sizeof(char));
-    memcpy(herp, "Herp", 5);
-    task->data = herp;
-    task_add_thread(task, 0, "fake", "");
-    DEBUG_MSG("Test task started");
+    struct jrpc_server *server = jrpc_server_init(8765);
+    jrpc_server_register(server, start_job, "start_job");
+    jrpc_server_run(server);
     return SUCCESS;
 }
 

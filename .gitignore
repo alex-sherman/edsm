@@ -5,6 +5,3 @@ CMakeFiles
 *.so
 *.a
 edsmd
-test/test
-zmq/client
-zmq/server
