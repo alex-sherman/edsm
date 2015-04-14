@@ -10,13 +10,11 @@
 struct peer_information
 {
     char *uuid;
-    void *zmq_dealer; //socket to use for outgoing messages to the peer
 
     UT_hash_handle hh;
 };
 
 struct peer_information *peers;
-void *zmq_context;
 
 void protocol_listener_init();
 void *msg_wait();
