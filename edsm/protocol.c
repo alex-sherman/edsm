@@ -48,6 +48,7 @@ void listen_thread() {
         struct timespec timeout;
         timeout.tv_sec = 1;
         timeout.tv_nsec = 500 * MSECS_PER_NSEC;
+        max_fd++;
         result = pselect(max_fd, &read_set, NULL, NULL, &timeout, NULL);
         if(result == -1) {
             if(errno != EINTR) {
@@ -131,7 +132,7 @@ void fdset_add_peers(const struct peer_information* head, fd_set* set, int* max_
     struct peer_information *s;
 
     for(s=peers; s != NULL; s=s->hh.next) {
-        DEBUG_MSG("Adding peer");
+        DEBUG_MSG("Adding peer, fd = %d", s->sock_fd);
         FD_SET(s->sock_fd, set);
         if(s->sock_fd > *max_fd) {
             *max_fd = s->sock_fd;
