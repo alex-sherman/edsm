@@ -15,8 +15,6 @@ struct peer_information
     UT_hash_handle hh;
 };
 
-struct peer_information *peers = NULL;
-
 void protocol_listener_init(int port);
 void protocol_shutdown();
 

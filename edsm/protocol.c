@@ -10,6 +10,8 @@ pthread_t wait_thread;
 int max_id = 0;
 int listen_port;
 
+struct peer_information *peers = NULL;
+
 void listen_thread();
 int read_message(int fd, struct message * new_msg);
 int peer_connect_and_add(struct sockaddr *, int port);
