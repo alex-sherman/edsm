@@ -4,6 +4,7 @@
 
 #define USECS_PER_SEC   1000000
 #define NSECS_PER_USEC  1000
+#define MSECS_PER_NSEC  1000000
 
 int64_t get_elapsed_us(struct timeval *start);
 int get_monotonic_time(struct timeval *dst);

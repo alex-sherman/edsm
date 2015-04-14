@@ -8,5 +8,4 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR})
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/uthash)
 
 add_subdirectory(${CMAKE_CURRENT_BINARY_DIR}/test)
-add_subdirectory(${CMAKE_CURRENT_BINARY_DIR}/zmq)
 add_subdirectory(${CMAKE_CURRENT_BINARY_DIR}/edsm)

@@ -3,13 +3,13 @@
 
 #include <stdint.h>
 #include <pthread.h>
-#include "zmq.h"
 #include "uthash.h"
 #include "message.h"
 
 struct peer_information
 {
-    char *uuid;
+    int id;
+    int sock_fd;
 
     UT_hash_handle hh;
 };
