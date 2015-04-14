@@ -12,18 +12,18 @@ volatile int running;
 
 int main(int argc, char **argv)
 {
-    if(argc < 2)
+    if(argc < 3)
     {
-        printf("Usage: edsmd <task directory> [group hostname]\n");
+        printf("Usage: edsmd <port> <task directory> [group hostname]\n");
         exit(0);
     }
 
     signal(SIGINT, shutdown_handler);
     signal(SIGTERM, shutdown_handler);
-
-    protocol_listener_init();
-    if(argc > 2){
-        if(group_join(argv[2]) == FAILURE)
+    int port = atoi(argv[1]);
+    protocol_listener_init(port);
+    if(argc > 3){
+        if(group_join(argv[3], 5555) == FAILURE)
         {
             printf("Failed to join group!\n");
             exit(0);
@@ -31,7 +31,7 @@ int main(int argc, char **argv)
     }
     DIR *d;
     struct dirent *dir;
-    d = opendir(argv[1]);
+    d = opendir(argv[2]);
     char path[128];
     if (d)
     {
@@ -39,7 +39,7 @@ int main(int argc, char **argv)
         {
             regex_t regex;
             char msgbuf[100];
-            strcpy(path, argv[1]);
+            strcpy(path, argv[2]);
             int reti = regcomp(&regex, "^task.*\\.so", 0);
             if (reti) {
                 fprintf(stderr, "Could not compile regex\n");

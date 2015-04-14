@@ -1,6 +1,5 @@
 #include "debug.h"
 #include "protocol.h"
-#include "sockets.h"
 #include "timing.h"
 #include <sys/select.h>
 #include <errno.h>
@@ -8,16 +7,20 @@
 int listen_sock;
 volatile int running;
 pthread_t wait_thread;
+int max_id = 0;
+int listen_port;
 
 void listen_thread();
-void handle_connection(struct peer_information* peers, int server_sock);
-void handle_disconnection(struct peer_information* peers, struct peer_information* peer);
-void remove_idle_clients(struct peer_information* peers, unsigned int timeout_sec);
+int peer_connect_and_add(struct sockaddr *, int port);
+int handle_new_connection(int server_sock);
+void handle_disconnection(struct peer_information* peer);
+void remove_idle_clients(unsigned int timeout_sec);
 void fdset_add_peers(const struct peer_information* head, fd_set* set, int* max_fd);
 
-void protocol_listener_init() {
+void protocol_listener_init(int port) {
     int rc = pthread_create(&wait_thread, NULL, (void * (*)(void *))listen_thread, NULL);
     assert(rc == 0);
+    listen_port = port;
 }
 void protocol_shutdown()
 {
@@ -27,7 +30,7 @@ void protocol_shutdown()
 }
 
 void listen_thread() {
-    listen_sock = tcp_passive_open(5555, 0);
+    listen_sock = tcp_passive_open(listen_port, 0);
     if(listen_sock == FAILURE)
     {
         return;
@@ -43,7 +46,7 @@ void listen_thread() {
         FD_SET(listen_sock, &read_set);
         fdset_add_peers(peers, &read_set, &max_fd);
         struct timespec timeout;
-        timeout.tv_sec = 0;
+        timeout.tv_sec = 1;
         timeout.tv_nsec = 500 * MSECS_PER_NSEC;
         result = pselect(max_fd, &read_set, NULL, NULL, &timeout, NULL);
         if(result == -1) {
@@ -54,13 +57,18 @@ void listen_thread() {
         }
         else if (result == 0)
         {
+            DEBUG_MSG("Timeout occured");
             //Time out occurs
         }
         else //result was greater than 0
         {
             if(FD_ISSET(listen_sock, &read_set)) {
-                DEBUG_MSG("Adding client");
-                handle_connection(peers, listen_sock);
+                DEBUG_MSG("Adding peer from new connection");
+                handle_new_connection(listen_sock);
+            }
+            struct peer_information *s;
+            for(s=peers; s != NULL; s=s->hh.next) {
+                DEBUG_MSG("Handling Message from peer");
             }
         }
 
@@ -69,7 +77,43 @@ void listen_thread() {
 
 int peer_send(int peer, struct message * msg) { DEBUG_MSG("Send message to: %d", peer); return FAILURE; }
 int peer_receive(int * out_peer, struct message * out_msg) { return FAILURE; }
-int group_join(char *hostname){ DEBUG_MSG("Join group %s", hostname); return FAILURE; }
+
+int group_join(char *hostname, int port){ 
+    DEBUG_MSG("Join group %s", hostname); 
+    struct sockaddr_storage peer_addr;
+    int rc = build_sockaddr(hostname, port, &peer_addr);
+    if(rc != FAILURE && rc <= sizeof(struct sockaddr)) {
+        rc = peer_connect_and_add((struct sockaddr*)&peer_addr, port);
+        if(rc != FAILURE) {
+            DEBUG_MSG("Successfully connected to first peer");
+            //TODO recieve peers from peer
+        } else { return FAILURE; }
+    } else {
+        DEBUG_MSG("Build address failed or result was too large");
+        return FAILURE; 
+    }
+    return SUCCESS;
+}
+int peer_connect_and_add(struct sockaddr * dest, int port) {
+    struct timeval timeout;
+    timeout.tv_sec = 5;
+    timeout.tv_usec = 0;
+
+    struct peer_information * peer = malloc(sizeof(struct peer_information));
+    peer->addr = *dest;
+    peer->sock_fd = tcp_active_open((struct sockaddr_storage*)dest, NULL, &timeout);
+
+    if(peer->sock_fd == -1) {
+        ERROR_MSG("connect_and_add() failed");
+        free(peer);
+        return FAILURE;
+    }
+
+    //TODO: Lock on ID here
+    peer->id = max_id+1;
+    max_id++;
+    return peer->id;
+}
 int group_leave();
 
 
@@ -87,6 +131,7 @@ void fdset_add_peers(const struct peer_information* head, fd_set* set, int* max_
     struct peer_information *s;
 
     for(s=peers; s != NULL; s=s->hh.next) {
+        DEBUG_MSG("Adding peer");
         FD_SET(s->sock_fd, set);
         if(s->sock_fd > *max_fd) {
             *max_fd = s->sock_fd;
@@ -94,40 +139,45 @@ void fdset_add_peers(const struct peer_information* head, fd_set* set, int* max_
     }
 }
 
-void handle_connection(struct peer_information* head, int server_sock)
+int handle_new_connection(int server_sock)
 {
-    assert(head);
+    assert(peers);
 
-    // client->addr_len = sizeof(client->addr);
-    // client->sock_fd = accept(server_sock, (struct sockaddr*)&client->addr, &client->addr_len);
-    // if(client->sock_fd == -1) {
-    //     ERROR_MSG("accept() failed");
-    //     free(client);
-    //     return;
-    // }
+    struct peer_information * peer;
+    peer = malloc(sizeof(struct peer_information));
+    socklen_t addr_size = sizeof(struct sockaddr);
+    peer->sock_fd = accept(server_sock, &peer->addr, &addr_size);
+
+    if(peer->sock_fd == -1) {
+        ERROR_MSG("accept() failed");
+        free(peer);
+        return FAILURE;
+    }
 
     // // All of our sockets will be non-blocking since they are handled by a
     // // single thread, and we cannot have one evil client hold up the rest.
     // set_nonblock(client->fd, 1);
 
-    // client->last_active = time(0);
+    //TODO: Lock ID here / this whole function
+    max_id++;
+    peer->id = max_id;
 
-    //TODO: Add client to hash table
+    HASH_ADD_INT( peers, id, peer );
+    return SUCCESS;
 }
 
-void handle_disconnection(struct peer_information* peers, struct peer_information* peer)
+void handle_disconnection(struct peer_information* peer)
 {
     assert(peers);
 
-    //TODO: Adapt to peer information
-    //close(client->fd);
-    //client->fd = -1;
-//
-    //DL_DELETE(*head, client);
-    //free(client);
+    close(peer->sock_fd);
+    peer->sock_fd = -1;
+
+    HASH_DEL(peers, peer);
+    free(peer);
 }
 
-void remove_idle_clients(struct peer_information* peers, unsigned int timeout_sec)
+void remove_idle_clients(unsigned int timeout_sec)
 {
     assert(peers);
 
