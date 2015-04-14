@@ -11,11 +11,13 @@ int max_id = 0;
 int listen_port;
 
 void listen_thread();
+int read_message(int fd, struct message * new_msg);
 int peer_connect_and_add(struct sockaddr *, int port);
 int handle_new_connection(int server_sock);
 void handle_disconnection(struct peer_information* peer);
 void remove_idle_clients(unsigned int timeout_sec);
 void fdset_add_peers(const struct peer_information* head, fd_set* set, int* max_fd);
+
 
 void protocol_listener_init(int port) {
     int rc = pthread_create(&wait_thread, NULL, (void * (*)(void *))listen_thread, NULL);
@@ -58,7 +60,6 @@ void listen_thread() {
         }
         else if (result == 0)
         {
-            DEBUG_MSG("Timeout occured");
             //Time out occurs
         }
         else //result was greater than 0
@@ -69,15 +70,45 @@ void listen_thread() {
             }
             struct peer_information *s;
             for(s=peers; s != NULL; s=s->hh.next) {
-                DEBUG_MSG("Handling Message from peer");
+                if(FD_ISSET(s->sock_fd, &read_set)){
+                    DEBUG_MSG("Handling Message from peer id: %d", s->id);
+                    struct message * new_msg = NULL;
+                    result = read_message(s->sock_fd, new_msg);
+                    if(result != FAILURE) {
+                        free_message(new_msg);
+                    } else { 
+                        ERROR_MSG("Reading in a peer message failed");
+                        close(s->sock_fd);
+                        running = 0;
+                    }
+                }
             }
         }
 
     }
+
+    //after done running, close peer sockets
+    struct peer_information *s;
+    for(s=peers; s != NULL; s=s->hh.next) {
+        DEBUG_MSG("Closing peer socket: %d", s->sock_fd);
+        close(s->sock_fd);
+    }
+}
+int read_message(int fd, struct message * new_msg) {
+    uint32_t msg_size;
+    if(read_from_socket(fd, (char *)&msg_size, sizeof(msg_size)) == -1) { return FAILURE; }
+
+    new_msg = alloc_message(0, msg_size);
+    if(read_from_socket(fd, new_msg->data, msg_size) == -1) { 
+        free_message(new_msg);
+        return FAILURE; 
+    }
+    message_put(new_msg, msg_size);
+    return SUCCESS;
 }
 
 int peer_send(int peer, struct message * msg) { DEBUG_MSG("Send message to: %d", peer); return FAILURE; }
-int peer_receive(int * out_peer, struct message * out_msg) { return FAILURE; }
+//int peer_receive(int * out_peer, struct message * out_msg) { return FAILURE; }
 
 int group_join(char *hostname, int port){ 
     DEBUG_MSG("Join group %s", hostname); 
@@ -132,7 +163,6 @@ void fdset_add_peers(const struct peer_information* head, fd_set* set, int* max_
     struct peer_information *s;
 
     for(s=peers; s != NULL; s=s->hh.next) {
-        DEBUG_MSG("Adding peer, fd = %d", s->sock_fd);
         FD_SET(s->sock_fd, set);
         if(s->sock_fd > *max_fd) {
             *max_fd = s->sock_fd;
@@ -142,8 +172,6 @@ void fdset_add_peers(const struct peer_information* head, fd_set* set, int* max_
 
 int handle_new_connection(int server_sock)
 {
-    assert(peers);
-
     struct peer_information * peer;
     peer = malloc(sizeof(struct peer_information));
     socklen_t addr_size = sizeof(struct sockaddr);

@@ -400,6 +400,25 @@ int recvfrom_timeout(int sockfd, void *buffer, size_t len, int flags,
 
     return res;
 }
+/*
+ * READ FROM SOCKET
+ *
+ * Returns 0 on success or -1 on failure.
+ */
+int read_from_socket(int sockfd, char *buffer, int size)
+{
+   int bytes_read = 0;
+   int ret;
+   while(bytes_read < size)
+   {
+       ret = read(sockfd, buffer + bytes_read, size - bytes_read);
+       if(ret < 1){
+           return -1;
+       }
+       bytes_read += ret;
+   }
+   return 0;
+}
 
 /*
  * SET NONBLOCK

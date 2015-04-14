@@ -38,7 +38,7 @@ int recv_timeout(int sockfd, void *buffer, size_t len, int flags,
         struct timeval *timeout);
 int recvfrom_timeout(int sockfd, void *buffer, size_t len, int flags,
         struct sockaddr *address, socklen_t *address_len, struct timeval *timeout);
-
+int read_from_socket(int sockfd, char *buffer, int size);
 int set_nonblock(int sockfd, int enable);
 int build_sockaddr(const char *host, unsigned short port, struct sockaddr_storage* dest);
 
