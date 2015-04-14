@@ -2,12 +2,13 @@ add_library(libedsm SHARED
     debug.c
     message.c
     protocol.c
+    sockets.c
     task.c
     timing.c
 )
 
 target_include_directories (libedsm PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(libedsm dl pthread zmq)
+target_link_libraries(libedsm dl pthread)
 
 
 add_executable(edsmd

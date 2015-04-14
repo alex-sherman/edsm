@@ -17,7 +17,7 @@ struct peer_information
 struct peer_information *peers;
 
 void protocol_listener_init();
-void *msg_wait();
+void protocol_shutdown();
 
 struct peer_information *peer_get(int peer_id);
 int peer_add(struct peer_information);

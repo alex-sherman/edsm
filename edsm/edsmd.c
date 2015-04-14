@@ -2,9 +2,13 @@
 #include <stdlib.h>
 #include <edsm.h>
 #include <dirent.h>
-#include <regex.h> 
+#include <regex.h>
+#include <signal.h>
 
 #include "debug.h"
+
+static void shutdown_handler(int signo);
+volatile int running;
 
 int main(int argc, char **argv)
 {
@@ -13,6 +17,10 @@ int main(int argc, char **argv)
         printf("Usage: edsmd <task directory> [group hostname]\n");
         exit(0);
     }
+
+    signal(SIGINT, shutdown_handler);
+    signal(SIGTERM, shutdown_handler);
+
     protocol_listener_init();
     if(argc > 2){
         if(group_join(argv[2]) == FAILURE)
@@ -53,5 +61,13 @@ int main(int argc, char **argv)
         }
         closedir(d);
     }
-    while(1) { }
+    running = 1;
+    while(running) { }
+}
+
+static void shutdown_handler(int signo)
+{
+    protocol_shutdown();
+    running = 0;
+    DEBUG_MSG("Exiting");
 }
