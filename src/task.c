@@ -6,6 +6,8 @@
 #include "debug.h"
 #include "task.h"
 
+struct edsm_task_information *tasks;
+
 int edsm_task_handle_add_thread(int peer_id, edsm_message *msg);
 
 int edsm_task_init(){
@@ -13,18 +15,43 @@ int edsm_task_init(){
     return SUCCESS;
 }
 
-extern int edsm_task_add_thread(struct edsm_task_information *task, int peer_id, char *thread_type, const char *param_format, ...)
+int edsm_task_add_thread(struct edsm_task_information *task, int peer_id, char *thread_type, edsm_message *params)
 {
     edsm_message * msg = edsm_message_create(10, 100);
-    edsm_message_put(msg, 100);
-    memcpy(msg->data, "herp", 4);
+    edsm_message_write_string(msg, (char *)task->name);
+    edsm_message_write_string(msg, thread_type);
+    edsm_message_write_message(msg, NULL);
     return edsm_proto_send(peer_id, MSG_TYPE_ADD_TASK, msg);
 }
 
 int edsm_task_handle_add_thread(int peer_id, edsm_message *msg)
 {
-    DEBUG_MSG("Got add thread message");
+    int rtn = SUCCESS;
+    char *task_name = edsm_message_read_string(msg);
+    if(task_name == NULL) { rtn = FAILURE; goto just_return; }
+    char *thread_type = edsm_message_read_string(msg);
+    if(thread_type == NULL) { rtn = FAILURE; goto free_thread_type; }
+    edsm_message *params = NULL;
+    if(edsm_message_read_message(msg, &params) == FAILURE) { DEBUG_MSG("Reading params failed"); rtn = FAILURE; goto free_params; }
+    struct edsm_task_information *task = NULL;
+    HASH_FIND_STR(tasks, task_name, task);
+    if(!task){
+        DEBUG_MSG("Attempted to add thread for uknown task %s", task_name);
+        rtn = FAILURE;
+        goto free_all;
+    }
+    task->start_thread(thread_type, params);
     return SUCCESS;
+free_all:
+    free(params);
+free_params:
+    free(thread_type);
+free_thread_type:
+    free(task_name);
+just_return:
+    if(rtn == FAILURE)
+        DEBUG_MSG("Error reading start thread message");
+    return rtn;
 }
 
 struct edsm_task_information *edsm_task_link(const char *name, char *path)
@@ -58,6 +85,7 @@ struct edsm_task_information *edsm_task_link(const char *name, char *path)
 
     task->run = run;
     task->start_thread = start_thread;
+    task->name = name;
 
     pthread_attr_t attr;
     pthread_attr_init(&attr);
@@ -69,6 +97,7 @@ struct edsm_task_information *edsm_task_link(const char *name, char *path)
         return NULL;
     }
     pthread_attr_destroy(&attr);
+    HASH_ADD_STR(tasks, name, task);
 
     return task;
 }

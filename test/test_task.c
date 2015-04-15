@@ -16,8 +16,7 @@ int test_link_task(){
 
 extern json_object *start_job(json_object *params)
 {
-    edsm_task_add_thread(cur_task, 1, "fake", "");
-    DEBUG_MSG("Test task started");
+    edsm_task_add_thread(cur_task, 1, "fake", NULL);
     return json_object_array_get_idx(params, 0);
 }
 
@@ -31,7 +30,8 @@ extern int run(struct edsm_task_information *task)
     return SUCCESS;
 }
 
-extern int start_thread(struct edsm_task_information *task)
+extern int start_thread(char * thread_type, edsm_message *params)
 {
+    DEBUG_MSG("Starting thread %s", thread_type);
     return SUCCESS;
 }

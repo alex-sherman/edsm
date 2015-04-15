@@ -130,11 +130,60 @@ int edsm_message_write(edsm_message *msg, void *data, int bytes)
 }
 int edsm_message_read(edsm_message *msg, void *dst, int bytes)
 {
-    if(!msg->data_size > bytes)
+    if(!(msg->data_size >= bytes))
     {
         return FAILURE;
     }
     memcpy(dst, msg->data, bytes);
     edsm_message_pull(msg, bytes);
     return SUCCESS;
+}
+
+int edsm_message_write_message(edsm_message *dst, edsm_message *val)
+{
+    uint32_t size;
+    if(val == NULL)
+    {
+        size = 0;
+        edsm_message_write(dst, &size, sizeof(size));
+        return SUCCESS;
+    }
+    size = val->data_size;
+    if(edsm_message_write(dst, &size, sizeof(size)) == FAILURE) return FAILURE;
+    if(edsm_message_write(dst, val->data, size) == FAILURE) return FAILURE;
+    return SUCCESS;
+}
+int edsm_message_read_message(edsm_message *msg, edsm_message **dst)
+{
+    uint32_t size;
+    if(edsm_message_read(msg, &size, sizeof(size)) == FAILURE || size < 0) return FAILURE;
+    if(size == 0)
+    {
+        (*dst) = NULL;
+        return SUCCESS;
+    }
+    *dst = edsm_message_create(0,size);
+    edsm_message_put(*dst, size);
+    if(edsm_message_read(msg, (*dst)->data, (*dst)->data_size) == FAILURE) return FAILURE;
+    return SUCCESS;
+}
+
+int edsm_message_write_string(edsm_message *dst, char *str)
+{
+    uint32_t size = strlen(str);
+    if(edsm_message_write(dst, &size, sizeof(size)) == FAILURE) return FAILURE;
+    if(edsm_message_write(dst, str, size) == FAILURE) return FAILURE;
+    return SUCCESS;
+}
+char *edsm_message_read_string(edsm_message *msg)
+{
+    uint32_t size;
+    if(edsm_message_read(msg, &size, sizeof(size)) == FAILURE) return NULL;
+    char *out = malloc(sizeof(char) * (size + 1));
+    out[size] = 0;
+    if(edsm_message_read(msg, out, size) == FAILURE){
+        free(out);
+        return NULL;
+    }
+    return out;
 }

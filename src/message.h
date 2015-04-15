@@ -32,11 +32,22 @@ struct edsm_message *edsm_message_clone(struct edsm_message *msg);
 
 void edsm_message_destroy(struct edsm_message *msg);
 
-void edsm_message_put(struct edsm_message *msg, int bytes);
-void edsm_message_push(struct edsm_message *msg, int bytes);
-void edsm_message_pull(struct edsm_message *msg, int bytes);
-void edsm_message_pull_tail(struct edsm_message *msg, int bytes);
-int edsm_message_write(struct edsm_message *msg, void *data, int bytes);
-int edsm_message_read(struct edsm_message *msg, void *dest, int bytes);
+// [HEAD  DATA> TAIL]
+void edsm_message_put(edsm_message *msg, int bytes);
+// [HEAD <DATA  TAIL]
+void edsm_message_push(edsm_message *msg, int bytes);
+// [HEAD> DATA  TAIL]
+void edsm_message_pull(edsm_message *msg, int bytes);
+// [HEAD  DATA <TAIL]
+void edsm_message_pull_tail(edsm_message *msg, int bytes);
+
+int edsm_message_write(edsm_message *msg, void *data, int bytes);
+int edsm_message_read(edsm_message *msg, void *dest, int bytes);
+
+int edsm_message_write_message(edsm_message *dst, edsm_message *val);
+int edsm_message_read_message(edsm_message *msg, edsm_message **dst);
+
+int edsm_message_write_string(edsm_message *dst, char *str);
+char *edsm_message_read_string(edsm_message *msg);
 
 #endif
