@@ -11,7 +11,7 @@ typedef int (*edsm_proto_message_handler_f)(int peer_id, edsm_message *msg);
 struct edsm_proto_message_handler
 {
     int message_type;
-    edsm_proto_message_handler_f handler;
+    edsm_proto_message_handler_f handler_func;
     UT_hash_handle hh;
 };
 

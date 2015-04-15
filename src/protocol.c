@@ -14,7 +14,7 @@ struct peer_information *peers = NULL;
 struct edsm_proto_message_handler *message_handlers = NULL;
 
 void listen_thread();
-edsm_message *read_message(int fd);
+edsm_message *read_message_from_socket(int fd);
 int peer_connect_and_add(struct sockaddr_storage *);
 int handle_new_connection(int server_sock);
 void handle_disconnection(struct peer_information* peer);
@@ -74,7 +74,7 @@ void listen_thread() {
             struct peer_information *s;
             for(s=peers; s != NULL; s=s->hh.next) {
                 if(FD_ISSET(s->sock_fd, &read_set)){
-                    edsm_message * new_msg = read_message(s->sock_fd);
+                    edsm_message * new_msg = read_message_from_socket(s->sock_fd);
                     if(new_msg != NULL) {
                         uint32_t msg_type;
                         edsm_message_read(new_msg, &msg_type, 4);
@@ -82,7 +82,7 @@ void listen_thread() {
                         HASH_FIND_INT(message_handlers, &msg_type, handler);
                         if(handler != NULL)
                         {
-                            handler->handler(s->id, new_msg);
+                            handler->handler_func(s->id, new_msg);
                         }
                         else{
                             DEBUG_MSG("Received message with unhandled type: %d", msg_type);
@@ -106,7 +106,7 @@ void listen_thread() {
         close(s->sock_fd);
     }
 }
-edsm_message *read_message(int fd) {
+edsm_message *read_message_from_socket(int fd) {
     uint32_t msg_size;
     if(edsm_socket_read(fd, (char *)&msg_size, sizeof(msg_size)) == -1) { return NULL; }
     edsm_message *new_msg = edsm_message_create(0, msg_size);
@@ -148,7 +148,7 @@ int edsm_proto_register_handler(int message_type, edsm_proto_message_handler_f h
 {
     struct edsm_proto_message_handler * handler = malloc(sizeof(struct edsm_proto_message_handler));
     handler->message_type = message_type;
-    handler->handler = handler_f;
+    handler->handler_func = handler_f;
     HASH_ADD_INT(message_handlers, message_type, handler);
     return SUCCESS;
 }
