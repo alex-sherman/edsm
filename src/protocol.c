@@ -11,6 +11,7 @@ int max_id = 0;
 int listen_port;
 
 struct peer_information *peers = NULL;
+struct edsm_proto_message_handler *message_handlers = NULL;
 
 void listen_thread();
 edsm_message *read_message(int fd);
@@ -73,12 +74,19 @@ void listen_thread() {
             struct peer_information *s;
             for(s=peers; s != NULL; s=s->hh.next) {
                 if(FD_ISSET(s->sock_fd, &read_set)){
-                    DEBUG_MSG("Handling Message from peer id: %d", s->id);
                     edsm_message * new_msg = read_message(s->sock_fd);
                     if(new_msg != NULL) {
                         uint32_t msg_type;
                         edsm_message_read(new_msg, &msg_type, 4);
-                        DEBUG_MSG("Got message type %d", msg_type)
+                        struct edsm_proto_message_handler *handler = NULL;
+                        HASH_FIND_INT(message_handlers, &msg_type, handler);
+                        if(handler != NULL)
+                        {
+                            handler->handler(s->id, new_msg);
+                        }
+                        else{
+                            DEBUG_MSG("Received message with unhandled type: %d", msg_type);
+                        }
                         edsm_message_destroy(new_msg);
                     } else { 
                         DEBUG_MSG("Reading in a peer message failed");
@@ -135,7 +143,15 @@ int edsm_proto_send(int peer_id, int msg_id, edsm_message * msg) {
     DEBUG_MSG("Send message succes");
     return SUCCESS;
 }
-//int peer_receive(int * out_peer, edsm_message * out_msg) { return FAILURE; }
+
+int edsm_proto_register_handler(int message_type, edsm_proto_message_handler_f handler_f)
+{
+    struct edsm_proto_message_handler * handler = malloc(sizeof(struct edsm_proto_message_handler));
+    handler->message_type = message_type;
+    handler->handler = handler_f;
+    HASH_ADD_INT(message_handlers, message_type, handler);
+    return SUCCESS;
+}
 
 int edsm_proto_group_join(char *hostname, int port){
     DEBUG_MSG("Join group %s", hostname); 

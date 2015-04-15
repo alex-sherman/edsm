@@ -22,6 +22,7 @@ int main(int argc, char **argv)
     signal(SIGTERM, shutdown_handler);
     int listen_port = atoi(argv[1]);
     edsm_proto_listener_init(listen_port);
+    edsm_task_init();
     if(argc > 4){
         int port = atoi(argv[4]);
         if(edsm_proto_group_join(argv[3], port) == FAILURE)

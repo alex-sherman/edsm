@@ -23,7 +23,9 @@ struct edsm_task_information
     void *data;
 };
 
+int edsm_task_init();
 int edsm_task_add_thread(struct edsm_task_information *task, int peer_id, char *thread_type, const char *param_format, ...);
 struct edsm_task_information *edsm_task_link(const char *name, char *path);
+
 
 #endif

@@ -6,13 +6,25 @@
 #include "debug.h"
 #include "task.h"
 
+int edsm_task_handle_add_thread(int peer_id, edsm_message *msg);
+
+int edsm_task_init(){
+    edsm_proto_register_handler(MSG_TYPE_ADD_TASK, edsm_task_handle_add_thread);
+    return SUCCESS;
+}
 
 extern int edsm_task_add_thread(struct edsm_task_information *task, int peer_id, char *thread_type, const char *param_format, ...)
 {
     edsm_message * msg = edsm_message_create(10, 100);
     edsm_message_put(msg, 100);
     memcpy(msg->data, "herp", 4);
-    return edsm_proto_send(peer_id, MSG_TYPE_TASK, msg);
+    return edsm_proto_send(peer_id, MSG_TYPE_ADD_TASK, msg);
+}
+
+int edsm_task_handle_add_thread(int peer_id, edsm_message *msg)
+{
+    DEBUG_MSG("Got add thread message");
+    return SUCCESS;
 }
 
 struct edsm_task_information *edsm_task_link(const char *name, char *path)
