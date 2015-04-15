@@ -3,8 +3,8 @@
 
 #include <sys/time.h>
 
-#define MSG_TYPE_PROTO_INIT 0x01;
-#define MSG_TYPE_TASK 0x02;
+#define MSG_TYPE_PROTO_INIT 0x01
+#define MSG_TYPE_TASK 0x02
 
 
 /* This is modeled after skbuff in Linux kernel. */

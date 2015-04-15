@@ -145,6 +145,17 @@ int tcp_active_open(struct sockaddr_storage* dest, const char *device, struct ti
             DEBUG_MSG("connect timed out");
             goto close_and_return;
         }
+        else
+        {
+            socklen_t size = sizeof(errno);
+            rtn = getsockopt(sockfd, SOL_SOCKET, SO_ERROR,
+                      &errno, &size);
+            if(errno != 0)
+            {
+                ERROR_MSG("Socket error occured %d", sockfd);
+                goto close_and_return;
+            }
+        }
 
         set_nonblock(sockfd, BLOCKING);
     }
@@ -153,7 +164,7 @@ int tcp_active_open(struct sockaddr_storage* dest, const char *device, struct ti
 close_and_return:
     close(sockfd);
 free_and_return:
-    return -1;
+    return FAILURE;
 }
 
 const static struct addrinfo udp_bind_hints = {

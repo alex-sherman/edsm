@@ -1,14 +1,18 @@
 #include <stdlib.h>
 #include <dlfcn.h>
 
+#include "message.h"
+#include "protocol.h"
 #include "debug.h"
 #include "task.h"
 
 
 extern int task_add_thread(struct task_information *task, int peer_id, char *thread_type, const char *param_format, ...)
 {
-    DEBUG_MSG("Request add thread for peer %d, thread type %s", peer_id, thread_type);
-    return SUCCESS;
+    struct message * msg = alloc_message(10, 100);
+    message_put(msg, 100);
+    memcpy(msg->data, "herp", 4);
+    return peer_send(peer_id, MSG_TYPE_TASK, msg);
 }
 
 struct task_information *task_link(const char *name, char *path)

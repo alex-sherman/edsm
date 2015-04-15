@@ -5,6 +5,8 @@
 
 #include "debug.h"
 
+struct task_information *cur_task;
+
 int test_link_task(){
     struct task_information *task = task_link("Test Task", "./task_test.so");
     pthread_join(task->thread, 0);
@@ -14,14 +16,16 @@ int test_link_task(){
 
 extern json_object *start_job(json_object *params)
 {
-    //task_add_thread(task, 0, "fake", "");
+    task_add_thread(cur_task, 1, "fake", "");
     DEBUG_MSG("Test task started");
     return json_object_array_get_idx(params, 0);
 }
 
 extern int run(struct task_information *task)
 {
+    cur_task = task;
     struct jrpc_server *server = jrpc_server_init(8765);
+    if(server == NULL) return SUCCESS;
     jrpc_server_register(server, start_job, "start_job");
     jrpc_server_run(server);
     return SUCCESS;

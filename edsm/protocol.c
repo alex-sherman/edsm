@@ -13,8 +13,8 @@ int listen_port;
 struct peer_information *peers = NULL;
 
 void listen_thread();
-int read_message(int fd, struct message * new_msg);
-int peer_connect_and_add(struct sockaddr *, int port);
+struct message *read_message(int fd);
+int peer_connect_and_add(struct sockaddr_storage *);
 int handle_new_connection(int server_sock);
 void handle_disconnection(struct peer_information* peer);
 void remove_idle_clients(unsigned int timeout_sec);
@@ -74,12 +74,14 @@ void listen_thread() {
             for(s=peers; s != NULL; s=s->hh.next) {
                 if(FD_ISSET(s->sock_fd, &read_set)){
                     DEBUG_MSG("Handling Message from peer id: %d", s->id);
-                    struct message * new_msg = NULL;
-                    result = read_message(s->sock_fd, new_msg);
-                    if(result != FAILURE) {
+                    struct message * new_msg = read_message(s->sock_fd);
+                    if(new_msg != NULL) {
+                        uint32_t msg_type;
+                        message_read(new_msg, &msg_type, 4);
+                        DEBUG_MSG("Got message type %d", msg_type)
                         free_message(new_msg);
                     } else { 
-                        ERROR_MSG("Reading in a peer message failed");
+                        DEBUG_MSG("Reading in a peer message failed");
                         close(s->sock_fd);
                         running = 0;
                     }
@@ -96,55 +98,81 @@ void listen_thread() {
         close(s->sock_fd);
     }
 }
-int read_message(int fd, struct message * new_msg) {
+struct message *read_message(int fd) {
     uint32_t msg_size;
-    if(read_from_socket(fd, (char *)&msg_size, sizeof(msg_size)) == -1) { return FAILURE; }
+    if(read_from_socket(fd, (char *)&msg_size, sizeof(msg_size)) == -1) { return NULL; }
+    struct message *new_msg = alloc_message(0, msg_size);
+    if(new_msg == NULL)
+        return NULL;
 
-    new_msg = alloc_message(0, msg_size);
     if(read_from_socket(fd, new_msg->data, msg_size) == -1) { 
         free_message(new_msg);
-        return FAILURE; 
+        return NULL; 
     }
     message_put(new_msg, msg_size);
-    return SUCCESS;
+    return new_msg;
 }
 
-int peer_send(int peer, struct message * msg) { DEBUG_MSG("Send message to: %d", peer); return FAILURE; }
+int peer_send(int peer_id, int msg_id, struct message * msg) {
+    DEBUG_MSG("Send message to: %d", peer_id);
+    struct peer_information * peer;
+    HASH_FIND_INT(peers, &peer_id, peer);
+    if(peer == NULL){
+        DEBUG_MSG("Peer lookup failed for %d", peer_id);
+        return FAILURE;
+    }
+    message_push(msg, 4);
+    *(uint32_t *)msg->data = msg_id;
+    int msg_size = msg->data_size;
+    message_push(msg, 4);
+    *(uint32_t *)msg->data = msg_size;
+    int bytes = write(peer->sock_fd, msg->data, msg->data_size);
+    if(bytes <= 0)
+    {
+        DEBUG_MSG("Socket send failed");
+        return FAILURE;
+    }
+    DEBUG_MSG("Send message succes");
+    return SUCCESS;
+}
 //int peer_receive(int * out_peer, struct message * out_msg) { return FAILURE; }
 
-int group_join(char *hostname, int port){ 
+int group_join(char *hostname, int port){
     DEBUG_MSG("Join group %s", hostname); 
     struct sockaddr_storage peer_addr;
     int rc = build_sockaddr(hostname, port, &peer_addr);
-    if(rc != FAILURE && rc <= sizeof(struct sockaddr)) {
-        rc = peer_connect_and_add((struct sockaddr*)&peer_addr, port);
-        if(rc != FAILURE) {
-            DEBUG_MSG("Successfully connected to first peer");
-            //TODO recieve peers from peer
-        } else { return FAILURE; }
-    } else {
+    if(rc == FAILURE || rc > sizeof(struct sockaddr))
+    {
         DEBUG_MSG("Build address failed or result was too large");
-        return FAILURE; 
+        goto failure;
     }
+    rc = peer_connect_and_add(&peer_addr);
+    if(rc == FAILURE)
+        goto failure;
+
+    DEBUG_MSG("Successfully connected to first peer");
+    //TODO recieve peers from peer
     return SUCCESS;
+failure:
+    return FAILURE;
 }
-int peer_connect_and_add(struct sockaddr * dest, int port) {
+int peer_connect_and_add(struct sockaddr_storage * dest) {
     struct timeval timeout;
     timeout.tv_sec = 5;
     timeout.tv_usec = 0;
 
     struct peer_information * peer = malloc(sizeof(struct peer_information));
-    peer->addr = *dest;
+    peer->addr = *(struct sockaddr*)dest;
     peer->sock_fd = tcp_active_open((struct sockaddr_storage*)dest, NULL, &timeout);
 
     if(peer->sock_fd == -1) {
-        ERROR_MSG("connect_and_add() failed");
         free(peer);
         return FAILURE;
     }
 
     //TODO: Lock on ID here
     peer->id = max_id+1;
+    HASH_ADD_INT(peers, id, peer);
     max_id++;
     return peer->id;
 }
