@@ -5,10 +5,10 @@
 
 #include "debug.h"
 
-struct task_information *cur_task;
+struct edsm_task_information *cur_task;
 
 int test_link_task(){
-    struct task_information *task = task_link("Test Task", "./task_test.so");
+    struct edsm_task_information *task = edsm_task_link("Test Task", "./task_test.so");
     pthread_join(task->thread, 0);
     DEBUG_MSG("Task data %s", (char *)task->data);
     return task == NULL ? FAILURE : SUCCESS;
@@ -16,12 +16,12 @@ int test_link_task(){
 
 extern json_object *start_job(json_object *params)
 {
-    task_add_thread(cur_task, 1, "fake", "");
+    edsm_task_add_thread(cur_task, 1, "fake", "");
     DEBUG_MSG("Test task started");
     return json_object_array_get_idx(params, 0);
 }
 
-extern int run(struct task_information *task)
+extern int run(struct edsm_task_information *task)
 {
     cur_task = task;
     struct jrpc_server *server = jrpc_server_init(8765);
@@ -31,7 +31,7 @@ extern int run(struct task_information *task)
     return SUCCESS;
 }
 
-extern int start_thread(struct task_information *task)
+extern int start_thread(struct edsm_task_information *task)
 {
     return SUCCESS;
 }

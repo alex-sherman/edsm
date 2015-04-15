@@ -5,7 +5,7 @@
 #include <pthread.h>
 #include "uthash.h"
 #include "message.h"
-#include "sockets.h"
+#include "socket.h"
 
 struct peer_information
 {
@@ -15,13 +15,14 @@ struct peer_information
     UT_hash_handle hh;
 };
 
-void protocol_listener_init(int port);
-void protocol_shutdown();
+void edsm_proto_listener_init(int port);
+void edsm_proto_shutdown();
 
-struct peer_information *peer_get(int peer_id);
-int peer_add(struct peer_information);
-int peer_send(int peer_id, int msg_id, struct message * msg);
-int group_join(char *hostname, int port);
-int group_leave();
+struct peer_information *edsm_proto_get_peer(int peer_id);
+int edsm_proto_add_peer(struct peer_information);
+int edsm_proto_send(int peer_id, int msg_id, edsm_message * msg);
+int edsm_proto_register_handler();
+int edsm_proto_group_join(char *hostname, int port);
+int edsm_proto_group_leave();
 
 #endif

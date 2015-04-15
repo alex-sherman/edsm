@@ -6,9 +6,9 @@
 #include "message.h"
 #include "timing.h"
 
-struct message *alloc_message(int head_size, int tail_size)
+edsm_message *edsm_message_create(int head_size, int tail_size)
 {
-    struct message *msg = malloc(sizeof(struct message));
+    edsm_message *msg = malloc(sizeof(edsm_message));
     if (!msg)
         return NULL;
 
@@ -31,7 +31,7 @@ struct message *alloc_message(int head_size, int tail_size)
     return msg;
 }
 
-int message_resize(struct message *msg, int new_head_size, int new_tail_size)
+int edsm_message_resize(edsm_message *msg, int new_head_size, int new_tail_size)
 {
     char *old_buffer = msg->buffer;
     int old_buffer_size = msg->buffer_size;
@@ -40,7 +40,7 @@ int message_resize(struct message *msg, int new_head_size, int new_tail_size)
     msg->buffer_size = new_head_size + new_tail_size;
     msg->buffer = malloc(msg->buffer_size);
     if (!msg->buffer) {
-        free_message(msg);
+        edsm_message_destroy(msg);
         return FAILURE;
     }
     int cpy_dst_start = new_head_size > old_head_size ? new_head_size - old_head_size : 0;
@@ -53,9 +53,9 @@ int message_resize(struct message *msg, int new_head_size, int new_tail_size)
     return SUCCESS;
 }
 
-struct message *clone_message(struct message *msg)
+edsm_message *edsm_message_clone(edsm_message *msg)
 {
-    struct message *newmsg = malloc(sizeof(struct message));
+    edsm_message *newmsg = malloc(sizeof(edsm_message));
     if (!newmsg)
         return NULL;
 
@@ -80,7 +80,7 @@ struct message *clone_message(struct message *msg)
     return newmsg;
 }
 
-void free_message(struct message *msg)
+void edsm_message_destroy(edsm_message *msg)
 {
     if (msg->buffer) {
         free(msg->buffer);
@@ -89,14 +89,14 @@ void free_message(struct message *msg)
     free(msg);
 }
 
-void message_put(struct message *msg, int bytes)
+void edsm_message_put(edsm_message *msg, int bytes)
 {
     assert(msg->tail_size >= bytes);
     msg->data_size += bytes;
     msg->tail_size -= bytes;
 }
 
-void message_push(struct message *msg, int bytes)
+void edsm_message_push(edsm_message *msg, int bytes)
 {
     assert(msg->head_size >= bytes);
     msg->data_size += bytes;
@@ -104,7 +104,7 @@ void message_push(struct message *msg, int bytes)
     msg->head_size -= bytes;
 }
 
-void message_pull(struct message *msg, int bytes)
+void edsm_message_pull(edsm_message *msg, int bytes)
 {
     assert(msg->data_size >= bytes);
     msg->data += bytes;
@@ -112,53 +112,29 @@ void message_pull(struct message *msg, int bytes)
     msg->data_size -= bytes;
 }
 
-void message_pull_tail(struct message *msg, int bytes)
+void edsm_message_pull_tail(edsm_message *msg, int bytes)
 {
     assert(msg->data_size >= bytes);
     msg->tail_size += bytes;
     msg->data_size -= bytes;
 }
 
-int message_write(struct message *msg, void *data, int bytes)
+int edsm_message_write(edsm_message *msg, void *data, int bytes)
 {
     if(!(msg->tail_size > bytes)){
-        message_resize(msg, msg->head_size, msg->buffer_size > bytes ? msg->buffer_size * 2 : bytes * 2);
+        edsm_message_resize(msg, msg->head_size, msg->buffer_size > bytes ? msg->buffer_size * 2 : bytes * 2);
     }
     memcpy(&msg->data[msg->data_size], data, bytes);
-    message_put(msg, bytes);
+    edsm_message_put(msg, bytes);
     return SUCCESS;
 }
-int message_read(struct message *msg, void *dst, int bytes)
+int edsm_message_read(edsm_message *msg, void *dst, int bytes)
 {
     if(!msg->data_size > bytes)
     {
         return FAILURE;
     }
     memcpy(dst, msg->data, bytes);
-    message_pull(msg, bytes);
+    edsm_message_pull(msg, bytes);
     return SUCCESS;
-}
-
-int message_queue_append(struct message **tx_queue_head, struct message **tx_queue_tail, struct message *msg)
-{
-    if (*tx_queue_tail && *tx_queue_head) {
-        (*tx_queue_tail)->next = msg;
-        *tx_queue_tail = msg;
-    } else {
-        *tx_queue_head = msg;
-        *tx_queue_tail = msg;
-    }
-    msg->next = NULL;
-    return 0;
-}
-struct message * message_queue_dequeue(struct message **tx_queue_head)
-{
-    struct message *output = *tx_queue_head;
-    if(output) {
-        *tx_queue_head = output->next;
-    }
-    else{
-        *tx_queue_head = NULL;
-    }
-    return output;
 }

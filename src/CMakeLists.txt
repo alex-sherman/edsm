@@ -2,7 +2,7 @@ add_library(edsm SHARED
     debug.c
     message.c
     protocol.c
-    sockets.c
+    socket.c
     task.c
     timing.c
 )

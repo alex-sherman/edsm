@@ -6,15 +6,15 @@
 #include "debug.h"
 
 int test_message_read_write(){
-    struct message *msg = alloc_message(0, 3);
-    message_write(msg, "0123456789", 10);
+    edsm_message *msg = edsm_message_create(0, 3);
+    edsm_message_write(msg, "0123456789", 10);
     char buffer[10];
 
-    message_read(msg, buffer, 2);
+    edsm_message_read(msg, buffer, 2);
     if(strncmp(buffer, "01", 2)) return FAILURE;
-    message_read(msg, buffer, 2);
+    edsm_message_read(msg, buffer, 2);
     if(strncmp(buffer, "23", 2)) return FAILURE;
-    message_read(msg, buffer, 5);
+    edsm_message_read(msg, buffer, 5);
     if(strncmp(buffer, "45678", 5)) return FAILURE;
     return SUCCESS;
 }

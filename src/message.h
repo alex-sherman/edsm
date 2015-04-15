@@ -9,7 +9,7 @@
 
 /* This is modeled after skbuff in Linux kernel. */
 
-struct message {
+typedef struct edsm_message {
     struct timeval created;
 
     char *buffer;
@@ -23,23 +23,20 @@ struct message {
     int tail_size;
 
     /* Next message in a queue. */
-    struct message *next;
-};
+    struct edsm_message *next;
+} edsm_message;
 
-struct message *alloc_message(int head_size, int tail_size);
-int resize_message(struct message *msg, int new_head_size, int new_tail_size);
-struct message *clone_message(struct message *msg);
+struct edsm_message *edsm_message_create(int head_size, int tail_size);
+int edsm_message_resize(struct edsm_message *msg, int new_head_size, int new_tail_size);
+struct edsm_message *edsm_message_clone(struct edsm_message *msg);
 
-void free_message(struct message *msg);
+void edsm_message_destroy(struct edsm_message *msg);
 
-void message_put(struct message *msg, int bytes);
-void message_push(struct message *msg, int bytes);
-void message_pull(struct message *msg, int bytes);
-void message_pull_tail(struct message *msg, int bytes);
-int message_write(struct message *msg, void *data, int bytes);
-int message_read(struct message *msg, void *dest, int bytes);
-
-int message_queue_append(struct message **tx_queue_head, struct message **tx_queue_tail, struct message *msg);
-struct message * message_queue_dequeue(struct message **tx_queue_head);
+void edsm_message_put(struct edsm_message *msg, int bytes);
+void edsm_message_push(struct edsm_message *msg, int bytes);
+void edsm_message_pull(struct edsm_message *msg, int bytes);
+void edsm_message_pull_tail(struct edsm_message *msg, int bytes);
+int edsm_message_write(struct edsm_message *msg, void *data, int bytes);
+int edsm_message_read(struct edsm_message *msg, void *dest, int bytes);
 
 #endif

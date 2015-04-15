@@ -7,15 +7,15 @@
 #include "task.h"
 
 
-extern int task_add_thread(struct task_information *task, int peer_id, char *thread_type, const char *param_format, ...)
+extern int edsm_task_add_thread(struct edsm_task_information *task, int peer_id, char *thread_type, const char *param_format, ...)
 {
-    struct message * msg = alloc_message(10, 100);
-    message_put(msg, 100);
+    edsm_message * msg = edsm_message_create(10, 100);
+    edsm_message_put(msg, 100);
     memcpy(msg->data, "herp", 4);
-    return peer_send(peer_id, MSG_TYPE_TASK, msg);
+    return edsm_proto_send(peer_id, MSG_TYPE_TASK, msg);
 }
 
-struct task_information *task_link(const char *name, char *path)
+struct edsm_task_information *edsm_task_link(const char *name, char *path)
 {
     f_task_run run;
     f_task_start_thread start_thread;
@@ -40,8 +40,8 @@ struct task_information *task_link(const char *name, char *path)
         return NULL;
     }
 
-    struct task_information* task = malloc(sizeof(struct task_information));
-    memset(task, 0, sizeof(struct task_information));
+    struct edsm_task_information* task = malloc(sizeof(struct edsm_task_information));
+    memset(task, 0, sizeof(struct edsm_task_information));
 
 
     task->run = run;
