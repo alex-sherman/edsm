@@ -41,13 +41,19 @@ void edsm_message_pull(edsm_message *msg, int bytes);
 // [HEAD  DATA <TAIL]
 void edsm_message_pull_tail(edsm_message *msg, int bytes);
 
+// Copies data from data into message
 int edsm_message_write(edsm_message *msg, void *data, int bytes);
+// Reads data from msg into data
 int edsm_message_read(edsm_message *msg, void *dest, int bytes);
 
+// Puts a small arbitrary length sub message into a message and prefixes it with the length
 int edsm_message_write_message(edsm_message *dst, edsm_message *val);
+// Mallocs a new message and puts the aforementioned submessage into it
 int edsm_message_read_message(edsm_message *msg, edsm_message **dst);
 
+// Write a string to a message, prefixed by its length
 int edsm_message_write_string(edsm_message *dst, char *str);
+// Mallocs a new string and reads one from msg, returns pointer to it
 char *edsm_message_read_string(edsm_message *msg);
 
 #endif
