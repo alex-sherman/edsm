@@ -6,6 +6,20 @@
 #include "debug.h"
 #include "task.h"
 
+struct _task_thread_entry_args
+{
+    struct edsm_task_information *task;
+    char *thread_type;
+    edsm_message *params;
+};
+
+void _task_thread_entry(void *args)
+{
+    struct _task_thread_entry_args *t_args = args;
+    t_args->task->start_thread(t_args->thread_type, t_args->params);
+    free(args);
+}
+
 struct edsm_task_information *tasks;
 
 int edsm_task_handle_add_thread(int peer_id, edsm_message *msg);
@@ -40,7 +54,12 @@ int edsm_task_handle_add_thread(int peer_id, edsm_message *msg)
         rtn = FAILURE;
         goto free_all;
     }
-    task->start_thread(thread_type, params);
+    struct _task_thread_entry_args *args = malloc(sizeof(struct _task_thread_entry_args));
+    args->task = task;
+    args->thread_type = thread_type;
+    args->params = params;
+    pthread_t task_thread;
+    pthread_create(&task_thread, NULL, (void * (*)(void *))_task_thread_entry, args);
     return SUCCESS;
 free_all:
     free(params);
