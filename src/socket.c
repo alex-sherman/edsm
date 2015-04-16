@@ -263,9 +263,10 @@ int build_sockaddr(const char* ip, unsigned short port, struct sockaddr_storage*
     }
 
     memset(dest, 0, sizeof(*dest));
-    memcpy(dest, results->ai_addr, results->ai_addrlen);
+    socklen_t len = results->ai_addrlen;
+    memcpy(dest, results->ai_addr, len);
     freeaddrinfo(results);
 
-    return results->ai_addrlen;
+    return len;
 }
 
