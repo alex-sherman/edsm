@@ -32,7 +32,7 @@ int edsm_task_init(){
 
 int edsm_task_send_up_call(struct edsm_task_information *task, uint32_t peer_id, uint32_t event, edsm_message *params)
 {
-    edsm_message * msg = edsm_message_create(10, 100);
+    edsm_message * msg = edsm_message_create(EDSM_PROTO_HEADER_SIZE, 100);
     edsm_message_write_string(msg, (char *)task->name);
     edsm_message_write(msg, &event, sizeof(event));
     edsm_message_write_message(msg, NULL);
@@ -101,7 +101,8 @@ struct edsm_task_information *edsm_task_link(const char *name, char *path)
     memset(task, 0, sizeof(struct edsm_task_information));
 
     task->up_call = up_call;
-    task->name = name;
+    task->name = malloc(strlen(name) +1);
+    strcpy(task->name, name);
 
     _edsm_task_do_up_call(task, 0, 0, NULL);
 

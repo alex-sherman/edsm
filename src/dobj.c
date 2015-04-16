@@ -28,13 +28,13 @@ uint32_t _read_dobj(edsm_message *msg, edsm_dobj **dobj)
     return dobj_id;
 }
 
-int edsm_dobj_send_join_reply(uint32_t dobj_id, uint32_t have_reference)
+int edsm_dobj_send_join_reply(uint32_t peer_id, uint32_t dobj_id, uint32_t have_reference)
 {
     edsm_message *msg = edsm_message_create(EDSM_PROTO_HEADER_SIZE, 8);
     edsm_message_write(msg, &DOBJ_MSG_TYPE_JOIN_REPLY, sizeof(DOBJ_MSG_TYPE_JOIN_REPLY));
     edsm_message_write(msg, &dobj_id, sizeof(dobj_id));
     edsm_message_write(msg, &have_reference, sizeof(have_reference));
-    return edsm_proto_send(0, MSG_TYPE_DOBJ, msg);
+    return edsm_proto_send(peer_id, MSG_TYPE_DOBJ, msg);
 }
 
 int edsm_dobj_handle_join_reply(uint32_t peer_id, edsm_message *msg)
@@ -70,10 +70,10 @@ int edsm_dobj_handle_join(uint32_t peer_id, edsm_message *msg)
         struct edsm_dobj_peer *peer = malloc(sizeof(struct edsm_dobj_peer));
         peer->id = peer_id;
         LL_APPEND(dobj->peers, peer);
-        edsm_dobj_send_join_reply(dobj_id, 1);
+        edsm_dobj_send_join_reply(peer_id, dobj_id, 1);
     }
     else {
-        edsm_dobj_send_join_reply(dobj_id, 0);
+        edsm_dobj_send_join_reply(peer_id, dobj_id, 0);
     }
     return SUCCESS;
 }
@@ -85,6 +85,7 @@ edsm_dobj *edsm_dobj_join(uint32_t id, edsm_dobj_message_handler_f handler)
     output->id = id;
     output->handler = handler;
     edsm_dobj_send_join(id);
+    DEBUG_MSG("Send join");
     return output;
 }
 

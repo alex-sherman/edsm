@@ -11,7 +11,7 @@ typedef int (*f_task_up_call)(struct edsm_task_information *task, uint32_t, uint
 struct edsm_task_information
 {
     int id;
-    const char *name;
+    char *name;
     pthread_t thread;
     //Provided by the task
     f_task_up_call up_call;

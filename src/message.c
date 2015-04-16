@@ -37,6 +37,7 @@ int edsm_message_resize(edsm_message *msg, int new_head_size, int new_tail_size)
     int old_buffer_size = msg->buffer_size;
     int old_head_size = msg->head_size;
 
+    DEBUG_MSG("%d %d %d %d", new_head_size, new_tail_size, old_head_size, msg->tail_size);
     msg->buffer_size = new_head_size + new_tail_size;
     msg->buffer = malloc(msg->buffer_size);
     if (!msg->buffer) {
@@ -45,11 +46,12 @@ int edsm_message_resize(edsm_message *msg, int new_head_size, int new_tail_size)
     }
     int cpy_dst_start = new_head_size > old_head_size ? new_head_size - old_head_size : 0;
     int cpy_src_start = new_head_size > old_head_size ? 0 : old_head_size - new_head_size;
-    int cpy_size = msg->buffer_size > old_buffer_size ? msg->buffer_size : old_buffer_size;
+    int cpy_size = msg->buffer_size > old_buffer_size ? old_buffer_size : msg->buffer_size;
     memcpy(&msg->buffer[cpy_dst_start], &old_buffer[cpy_src_start], cpy_size);
     free(old_buffer);
     msg->tail_size = new_tail_size;
     msg->head_size = new_head_size;
+    msg->data = msg->buffer + msg->head_size;
     return SUCCESS;
 }
 
