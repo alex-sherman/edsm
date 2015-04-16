@@ -31,7 +31,7 @@ void edsm_proto_shutdown();
 struct peer_information *edsm_proto_get_peer(int peer_id);
 int edsm_proto_add_peer(struct peer_information);
 uint32_t edsm_proto_local_id();
-int edsm_proto_send(int peer_id, int msg_id, edsm_message * msg);
+int edsm_proto_send(uint32_t peer_id, int msg_id, edsm_message * msg);
 int edsm_proto_register_handler(int message_type, edsm_proto_message_handler_f handler_f);
 int edsm_proto_group_join(char *hostname, int port);
 int edsm_proto_group_leave();

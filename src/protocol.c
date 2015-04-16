@@ -15,7 +15,7 @@ struct edsm_proto_message_handler *message_handlers = NULL;
 
 void listen_thread();
 edsm_message *read_message_from_socket(int fd);
-int handle_init_message(int peer, edsm_message *msg);
+int handle_init_message(uint32_t peer, edsm_message *msg);
 int handle_new_connection(int server_sock);
 void handle_disconnection(struct peer_information* peer);
 void remove_idle_clients(unsigned int timeout_sec);
@@ -123,7 +123,7 @@ edsm_message *read_message_from_socket(int fd) {
 
 // Init message is received from other peer after initiating a connection with them
 // (for example by connecting to them with group_join)
-int handle_init_message(int peer, edsm_message *msg) {
+int handle_init_message(uint32_t peer, edsm_message *msg) {
     return FAILURE;
 }
 
@@ -131,8 +131,8 @@ uint32_t edsm_proto_local_id() {
     return my_id;
 }
 
-int edsm_proto_send(int peer_id, int msg_id, edsm_message * msg) {
-    DEBUG_MSG("Send message to: %d", peer_id);
+int edsm_proto_send(uint32_t peer_id, int msg_id, edsm_message * msg) {
+    //DEBUG_MSG("Send message to: %d", peer_id);
     struct peer_information * peer;
     HASH_FIND_INT(peers, &peer_id, peer);
     if(peer == NULL){
@@ -150,7 +150,7 @@ int edsm_proto_send(int peer_id, int msg_id, edsm_message * msg) {
         DEBUG_MSG("Socket send failed");
         return FAILURE;
     }
-    DEBUG_MSG("Send message succes");
+    //DEBUG_MSG("Send message succes");
     return SUCCESS;
 }
 
@@ -254,14 +254,4 @@ void remove_idle_clients(unsigned int timeout_sec)
     assert(peers);
 
     //TODO: Adapt to peer information
-    //time_t cutoff = time(0) - timeout_sec;
-//
-    //struct client* client;
-    //struct client* tmp;
-//
-    //DL_FOREACH_SAFE(*head, client, tmp) {
-    //    if(client->last_active <= cutoff) {
-    //        handle_disconnection(head, client);
-    //    }
-    //}
 }
