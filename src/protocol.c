@@ -7,7 +7,7 @@
 int listen_sock;
 volatile int running;
 pthread_t wait_thread;
-int max_id = 0;
+uint32_t max_id = 0, my_id= 0;
 int listen_port;
 
 struct peer_information *peers = NULL;
@@ -15,7 +15,7 @@ struct edsm_proto_message_handler *message_handlers = NULL;
 
 void listen_thread();
 edsm_message *read_message_from_socket(int fd);
-int peer_connect_and_add(struct sockaddr_storage *);
+int handle_init_message(int peer, edsm_message *msg);
 int handle_new_connection(int server_sock);
 void handle_disconnection(struct peer_information* peer);
 void remove_idle_clients(unsigned int timeout_sec);
@@ -71,8 +71,8 @@ void listen_thread() {
                 DEBUG_MSG("Adding peer from new connection");
                 handle_new_connection(listen_sock);
             }
-            struct peer_information *s;
-            for(s=peers; s != NULL; s=s->hh.next) {
+            struct peer_information *s, *tmp;
+            HASH_ITER(hh, peers, s, tmp) {
                 if(FD_ISSET(s->sock_fd, &read_set)){
                     edsm_message * new_msg = read_message_from_socket(s->sock_fd);
                     if(new_msg != NULL) {
@@ -90,7 +90,7 @@ void listen_thread() {
                         edsm_message_destroy(new_msg);
                     } else { 
                         DEBUG_MSG("Reading in a peer message failed");
-                        close(s->sock_fd);
+                        handle_disconnection(s);
                         running = 0;
                     }
                 }
@@ -119,6 +119,16 @@ edsm_message *read_message_from_socket(int fd) {
     }
     edsm_message_put(new_msg, msg_size);
     return new_msg;
+}
+
+// Init message is received from other peer after initiating a connection with them
+// (for example by connecting to them with group_join)
+int handle_init_message(int peer, edsm_message *msg) {
+    return FAILURE;
+}
+
+uint32_t edsm_proto_local_id() {
+    return my_id;
 }
 
 int edsm_proto_send(int peer_id, int msg_id, edsm_message * msg) {
@@ -167,6 +177,8 @@ int edsm_proto_group_join(char *hostname, int port){
         return FAILURE;
     }
 
+    // Send an init message here
+
     //TODO: Lock on ID here
     peer->id = max_id+1;
     HASH_ADD_INT(peers, id, peer);
@@ -210,6 +222,9 @@ int handle_new_connection(int server_sock)
         free(peer);
         return FAILURE;
     }
+
+    // Recieve + send handshakes here
+
 
     // // All of our sockets will be non-blocking since they are handled by a
     // // single thread, and we cannot have one evil client hold up the rest.
