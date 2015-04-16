@@ -10,10 +10,10 @@ add_executable(test_task_com
 )
 target_link_libraries(test_task_com jrpc json)
 
-add_executable(test
+add_executable(run_tests
     test.c
     test_task.c
     test_message.c
 )
 
-target_link_libraries(test LINK_PUBLIC edsm jrpc json)
+target_link_libraries(run_tests LINK_PUBLIC edsm jrpc json)

@@ -1,4 +1,5 @@
 add_library(edsm SHARED
+    edsm.h
     debug.c
     message.c
     protocol.c
