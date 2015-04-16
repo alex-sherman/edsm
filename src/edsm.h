@@ -4,5 +4,6 @@
 #include "protocol.h"
 #include "message.h"
 #include "task.h"
+#include "dobj.h"
 
 #endif

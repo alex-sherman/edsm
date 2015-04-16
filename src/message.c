@@ -119,7 +119,7 @@ void edsm_message_pull_tail(edsm_message *msg, int bytes)
     msg->data_size -= bytes;
 }
 
-int edsm_message_write(edsm_message *msg, void *data, int bytes)
+int edsm_message_write(edsm_message *msg, const void *data, int bytes)
 {
     if(!(msg->tail_size > bytes)){
         edsm_message_resize(msg, msg->head_size, msg->buffer_size > bytes ? msg->buffer_size * 2 : bytes * 2);

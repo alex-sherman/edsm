@@ -4,7 +4,8 @@
 #include <sys/time.h>
 
 #define MSG_TYPE_PROTO_INIT 0x01
-#define MSG_TYPE_ADD_TASK 0x02
+#define MSG_TYPE_TASK 0x02
+#define MSG_TYPE_DOBJ 0x03
 
 
 /* This is modeled after skbuff in Linux kernel. */
@@ -42,7 +43,7 @@ void edsm_message_pull(edsm_message *msg, int bytes);
 void edsm_message_pull_tail(edsm_message *msg, int bytes);
 
 // Copies data from data into message
-int edsm_message_write(edsm_message *msg, void *data, int bytes);
+int edsm_message_write(edsm_message *msg, const void *data, int bytes);
 // Reads data from msg into data
 int edsm_message_read(edsm_message *msg, void *dest, int bytes);
 

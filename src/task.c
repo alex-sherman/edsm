@@ -26,7 +26,7 @@ struct edsm_task_information *tasks;
 int edsm_task_handle_up_call(uint32_t peer_id, edsm_message *msg);
 
 int edsm_task_init(){
-    edsm_proto_register_handler(MSG_TYPE_ADD_TASK, edsm_task_handle_up_call);
+    edsm_proto_register_handler(MSG_TYPE_TASK, edsm_task_handle_up_call);
     return SUCCESS;
 }
 
@@ -36,7 +36,7 @@ int edsm_task_send_up_call(struct edsm_task_information *task, uint32_t peer_id,
     edsm_message_write_string(msg, (char *)task->name);
     edsm_message_write(msg, &event, sizeof(event));
     edsm_message_write_message(msg, NULL);
-    return edsm_proto_send(peer_id, MSG_TYPE_ADD_TASK, msg);
+    return edsm_proto_send(peer_id, MSG_TYPE_TASK, msg);
 }
 
 int _edsm_task_do_up_call(struct edsm_task_information *task, uint32_t peer_id, uint32_t event, edsm_message *params)
