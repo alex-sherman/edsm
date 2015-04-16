@@ -123,7 +123,7 @@ void edsm_message_pull_tail(edsm_message *msg, int bytes)
 
 int edsm_message_write(edsm_message *msg, const void *data, int bytes)
 {
-    if(!(msg->tail_size > bytes)){
+    if(!(msg->tail_size >= bytes)){ //TODO BREAK AGAIN
         edsm_message_resize(msg, msg->head_size, msg->buffer_size > bytes ? msg->buffer_size * 2 : bytes * 2);
     }
     memcpy(&msg->data[msg->data_size], data, bytes);

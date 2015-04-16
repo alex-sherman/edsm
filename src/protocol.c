@@ -15,7 +15,8 @@ struct edsm_proto_message_handler *message_handlers = NULL;
 
 void listen_thread();
 edsm_message *read_message_from_socket(int fd);
-int handle_init_message(uint32_t peer, edsm_message *msg);
+int fd_send_message(int sock_fd, uint32_t msg_type, edsm_message * msg);
+int read_and_handle_init_message(uint32_t *peer, int sock_fd);
 int handle_new_connection(int server_sock);
 void handle_disconnection(struct peer_information* peer);
 void remove_idle_clients(unsigned int timeout_sec);
@@ -109,6 +110,7 @@ void listen_thread() {
 edsm_message *read_message_from_socket(int fd) {
     uint32_t msg_size;
     if(edsm_socket_read(fd, (char *)&msg_size, sizeof(msg_size)) == -1) { return NULL; }
+
     edsm_message *new_msg = edsm_message_create(0, msg_size);
     if(new_msg == NULL)
         return NULL;
@@ -123,15 +125,48 @@ edsm_message *read_message_from_socket(int fd) {
 
 // Init message is received from other peer after initiating a connection with them
 // (for example by connecting to them with group_join)
-int handle_init_message(uint32_t peer, edsm_message *msg) {
-    return FAILURE;
+// Fills in the peer variable with the value for the remote peer
+int read_and_handle_init_message(uint32_t *peer, int sock_fd) {
+    edsm_message * new_msg = read_message_from_socket(sock_fd);
+    if(new_msg == NULL) {
+        DEBUG_MSG("Reading init message from peer failed");
+        return FAILURE;
+    }
+    uint32_t msg_type;
+    edsm_message_read(new_msg, &msg_type, 4);
+    if(msg_type != MSG_TYPE_PROTO_INIT) {
+        DEBUG_MSG("First message recieved from peer was not init.");
+        goto free_and_fail;
+    }
+
+    uint32_t recvd_peer_id;
+    edsm_message_read(new_msg, &recvd_peer_id, sizeof(recvd_peer_id));
+    if(recvd_peer_id == 0) { // 0 means that the peer has no ID yet
+        //TODO: Lock on ID here
+        *peer = max_id+1;
+        max_id++;
+    } else {
+        *peer = recvd_peer_id;
+    }
+
+
+    edsm_message_destroy(new_msg);
+    return SUCCESS;
+
+    free_and_fail:
+        edsm_message_destroy(new_msg);
+        return FAILURE;
 }
 
 uint32_t edsm_proto_local_id() {
     return my_id;
 }
+void edsm_proto_set_local_id(uint32_t id) {
+    my_id = id;
+    max_id = id;
+}
 
-int edsm_proto_send(uint32_t peer_id, int msg_id, edsm_message * msg) {
+int edsm_proto_send(uint32_t peer_id, uint32_t msg_type, edsm_message * msg) {
     //DEBUG_MSG("Send message to: %d", peer_id);
     struct peer_information * peer;
     HASH_FIND_INT(peers, &peer_id, peer);
@@ -139,18 +174,24 @@ int edsm_proto_send(uint32_t peer_id, int msg_id, edsm_message * msg) {
         DEBUG_MSG("Peer lookup failed for %d", peer_id);
         return FAILURE;
     }
-    edsm_message_push(msg, 4);
-    *(uint32_t *)msg->data = msg_id;
-    int msg_size = msg->data_size;
-    edsm_message_push(msg, 4);
-    *(uint32_t *)msg->data = msg_size;
-    int bytes = write(peer->sock_fd, msg->data, msg->data_size);
+    return fd_send_message(peer->sock_fd, msg_type, msg);
+}
+int fd_send_message(int sock_fd, uint32_t msg_type, edsm_message * msg) {
+    edsm_message_push(msg, sizeof(msg_type));
+    *(uint32_t *)msg->data = msg_type;
+
+    uint32_t msg_body_size = msg->data_size; // We can't count the size itself as part something to read
+    edsm_message_push(msg, sizeof(msg_body_size));
+    *(uint32_t *)msg->data = msg_body_size;
+
+    //DEBUG_MSG("Sending message with data size %d", msg_body_size);
+    int bytes = write(sock_fd, msg->data, msg->data_size);
     if(bytes <= 0)
     {
         DEBUG_MSG("Socket send failed");
         return FAILURE;
     }
-    //DEBUG_MSG("Send message succes");
+    //DEBUG_MSG("Send message success");
     return SUCCESS;
 }
 
@@ -173,17 +214,26 @@ int edsm_proto_group_join(char *hostname, int port){
     peer->sock_fd = edsm_socket_connect(hostname, port, &timeout);
 
     if(peer->sock_fd == -1) {
-        free(peer);
-        return FAILURE;
+        goto free_and_fail;
     }
 
-    // Send an init message here
+    // Send an init message
+    edsm_message * init_msg = edsm_message_create(EDSM_PROTO_HEADER_SIZE, sizeof(uint32_t));
+    edsm_message_write(init_msg, &my_id, sizeof(uint32_t));
+    if(fd_send_message(peer->sock_fd, MSG_TYPE_PROTO_INIT, init_msg) == FAILURE) {
+        DEBUG_MSG("Sending init msg failed");
+        goto close_and_fail;
+    }
+    // TODO: receive response, write handle response method
 
-    //TODO: Lock on ID here
-    peer->id = max_id+1;
-    HASH_ADD_INT(peers, id, peer);
-    max_id++;
-    return peer->id;
+
+    return SUCCESS;
+
+    close_and_fail:
+        close(peer->sock_fd);
+    free_and_fail:
+        free(peer);
+        return FAILURE;
 }
 
 int edsm_proto_group_leave();
@@ -219,23 +269,37 @@ int handle_new_connection(int server_sock)
 
     if(peer->sock_fd == -1) {
         ERROR_MSG("accept() failed");
-        free(peer);
-        return FAILURE;
+        goto free_and_fail;
     }
 
     // Recieve + send handshakes here
-
+    DEBUG_MSG("Reading init msg from peer");
+    if(read_and_handle_init_message(&(peer->id), peer->sock_fd) == FAILURE)
+    {
+        DEBUG_MSG("Handling init message from peer failed");
+        goto close_and_fail;
+    }
+    edsm_message *init_response = edsm_message_create(EDSM_PROTO_HEADER_SIZE, sizeof(uint32_t));
+    edsm_message_write(init_response, &(peer->id), sizeof(uint32_t)); //respond with the ID of the peer
+    if(fd_send_message(peer->sock_fd, MSG_TYPE_PROTO_INIT, init_response) == FAILURE) {
+        DEBUG_MSG("Sending init response failed");
+        goto close_and_fail;
+    }
 
     // // All of our sockets will be non-blocking since they are handled by a
     // // single thread, and we cannot have one evil client hold up the rest.
     // set_nonblock(client->fd, 1);
 
-    //TODO: Lock ID here / this whole function
-    max_id++;
-    peer->id = max_id;
-
     HASH_ADD_INT( peers, id, peer );
+
+    DEBUG_MSG("Added new peer with ID: %d", peer->id);
     return SUCCESS;
+
+    close_and_fail:
+        close(peer->sock_fd);
+    free_and_fail:
+        free(peer);
+        return FAILURE;
 }
 
 void handle_disconnection(struct peer_information* peer)

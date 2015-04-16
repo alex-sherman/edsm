@@ -21,6 +21,7 @@ int main(int argc, char **argv)
     signal(SIGINT, shutdown_handler);
     signal(SIGTERM, shutdown_handler);
     int listen_port = atoi(argv[1]);
+    if(argc == 3) edsm_proto_set_local_id(1);
     edsm_proto_listener_init(listen_port);
     edsm_task_init();
     edsm_dobj_init();
@@ -34,15 +35,19 @@ int main(int argc, char **argv)
     }
     DIR *d;
     struct dirent *dir;
-    d = opendir(argv[2]);
     char path[128];
+    strncpy(path, argv[2], 128);
+    if(path[strlen(path)-1] != '/') {
+        path[strlen(path)] = '/';
+    }
+    d = opendir(path);
     if (d)
     {
         while ((dir = readdir(d)) != NULL)
         {
             regex_t regex;
             char msgbuf[100];
-            strcpy(path, argv[2]);
+
             int reti = regcomp(&regex, "^task.*\\.so", 0);
             if (reti) {
                 fprintf(stderr, "Could not compile regex\n");

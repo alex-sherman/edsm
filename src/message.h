@@ -2,11 +2,11 @@
 #define MESSAGE_H
 
 #include <sys/time.h>
+#include <stdint.h>
 
-#define MSG_TYPE_PROTO_INIT 0x01
-#define MSG_TYPE_TASK 0x02
-#define MSG_TYPE_DOBJ 0x03
-
+static const uint32_t MSG_TYPE_PROTO_INIT = 0x01;
+static const uint32_t MSG_TYPE_TASK = 0x02;
+static const uint32_t MSG_TYPE_DOBJ = 0x03;
 
 /* This is modeled after skbuff in Linux kernel. */
 
@@ -18,10 +18,10 @@ typedef struct edsm_message {
     /* Data for reading starts here and extends data_size bytes. */
     char *data;
 
-    int buffer_size;
-    int head_size;
-    int data_size;
-    int tail_size;
+    uint32_t buffer_size;
+    uint32_t head_size;
+    uint32_t data_size;
+    uint32_t tail_size;
 
     /* Next message in a queue. */
     struct edsm_message *next;
