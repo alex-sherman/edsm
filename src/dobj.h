@@ -1,7 +1,6 @@
 #ifndef EDSM_DOBJ_H
 #define EDSM_DOBJ_H
 
-
 typedef struct edsm_dobj edsm_dobj;
 
 typedef int (*edsm_dobj_message_handler_f)(edsm_dobj *dobj, uint32_t peer_id, edsm_message *msg);
