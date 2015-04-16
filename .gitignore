@@ -38,3 +38,6 @@ edsmd
 
 # Debug files
 *.dSYM/
+
+build/
+*.idea/
