@@ -16,22 +16,23 @@ int test_link_task(){
 
 extern json_object *start_job(json_object *params)
 {
-    edsm_task_add_thread(cur_task, 1, "fake", NULL);
+    edsm_task_send_up_call(cur_task, 1, 1, NULL);
     return json_object_array_get_idx(params, 0);
 }
 
-extern int run(struct edsm_task_information *task)
+extern int up_call(struct edsm_task_information *task, uint32_t peer_id, uint32_t event, edsm_message *params)
 {
-    cur_task = task;
-    struct jrpc_server *server = jrpc_server_init(8765);
-    if(server == NULL) return SUCCESS;
-    jrpc_server_register(server, start_job, "start_job");
-    jrpc_server_run(server);
-    return SUCCESS;
-}
-
-extern int start_thread(char * thread_type, edsm_message *params)
-{
-    DEBUG_MSG("Starting thread %s", thread_type);
+    if(event == 0)
+    {
+        cur_task = task;
+        struct jrpc_server *server = jrpc_server_init(8765);
+        if(server == NULL) return SUCCESS;
+        jrpc_server_register(server, start_job, "start_job");
+        jrpc_server_run(server);
+    }
+    else if(event == 1)
+    {
+        DEBUG_MSG("Starting job ")
+    }
     return SUCCESS;
 }
