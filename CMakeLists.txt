@@ -4,8 +4,7 @@ cmake_minimum_required(VERSION 2.6)
 set(CMAKE_C_FLAGS "-g -rdynamic -Wall -pedantic -std=c99 -D_POSIX_C_SOURCE=200809L -fPIC")
 
 # Include the common header files
-include_directories(${CMAKE_CURRENT_BINARY_DIR})
-include_directories(${CMAKE_CURRENT_BINARY_DIR}/uthash)
+include_directories(uthash)
 
-add_subdirectory(${CMAKE_CURRENT_BINARY_DIR}/test)
-add_subdirectory(${CMAKE_CURRENT_BINARY_DIR}/src)
+add_subdirectory(test)
+add_subdirectory(src)
