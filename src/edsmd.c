@@ -20,13 +20,13 @@ int main(int argc, char **argv)
 
     signal(SIGINT, shutdown_handler);
     signal(SIGTERM, shutdown_handler);
-    int listen_port = atoi(argv[1]);
+    unsigned short listen_port = atoi(argv[1]);
     if(argc == 3) edsm_proto_set_local_id(1);
     edsm_proto_listener_init(listen_port);
     edsm_task_init();
     edsm_dobj_init();
     if(argc > 4){
-        int port = atoi(argv[4]);
+        unsigned short port = atoi(argv[4]);
         if(edsm_proto_group_join(argv[3], port) == FAILURE)
         {
             printf("Failed to join group!\n");

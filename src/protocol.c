@@ -1,14 +1,12 @@
 #include "debug.h"
 #include "protocol.h"
-#include "timing.h"
-#include <sys/select.h>
 #include <errno.h>
 
 int listen_sock;
 volatile int running;
 pthread_t wait_thread;
 uint32_t max_id = 0, my_id= 0;
-int listen_port;
+unsigned short listen_port;
 
 struct peer_information *peers = NULL;
 struct edsm_proto_message_handler *message_handlers = NULL;
@@ -20,11 +18,10 @@ int read_and_handle_init_message(uint32_t *peer, int sock_fd);
 int read_and_handle_init_response(uint32_t *peer, int sock_fd);
 int handle_new_connection(int server_sock);
 void handle_disconnection(struct peer_information* peer);
-void remove_idle_clients(unsigned int timeout_sec);
-void fdset_add_peers(const struct peer_information* head, fd_set* set, int* max_fd);
+void fdset_add_peers(fd_set *set, int *max_fd);
 
 
-void edsm_proto_listener_init(int port) {
+void edsm_proto_listener_init(unsigned short port) {
     int rc = pthread_create(&wait_thread, NULL, (void * (*)(void *))listen_thread, NULL);
     assert(rc == 0);
     listen_port = port;
@@ -51,7 +48,7 @@ void listen_thread() {
         int max_fd = listen_sock;
         FD_ZERO(&read_set);
         FD_SET(listen_sock, &read_set);
-        fdset_add_peers(peers, &read_set, &max_fd);
+        fdset_add_peers(&read_set, &max_fd);
         struct timespec timeout;
         timeout.tv_sec = 1;
         timeout.tv_nsec = 500 * MSECS_PER_NSEC;
@@ -104,7 +101,7 @@ void listen_thread() {
     //after done running, close peer sockets
     struct peer_information *s;
     for(s=peers; s != NULL; s=s->hh.next) {
-        DEBUG_MSG("Closing peer socket: %d", s->sock_fd);
+        DEBUG_MSG("Closing peer %d socket_fd %d", s->id, s->sock_fd);
         close(s->sock_fd);
     }
 }
@@ -223,7 +220,7 @@ int fd_send_message(int sock_fd, uint32_t msg_type, edsm_message * msg) {
     *(uint32_t *)msg->data = msg_body_size;
 
     //DEBUG_MSG("Sending message with data size %d", msg_body_size);
-    int bytes = write(sock_fd, msg->data, msg->data_size);
+    ssize_t bytes = write(sock_fd, msg->data, msg->data_size);
     if(bytes <= 0)
     {
         DEBUG_MSG("Socket send failed");
@@ -242,14 +239,23 @@ int edsm_proto_register_handler(int message_type, edsm_proto_message_handler_f h
     return SUCCESS;
 }
 
-int edsm_proto_group_join(char *hostname, int port){
-    DEBUG_MSG("Join group %s", hostname); 
+int edsm_proto_group_join(char *hostname, unsigned short port){
+    DEBUG_MSG("Joining group %s", hostname);
     struct timeval timeout;
     timeout.tv_sec = 5;
     timeout.tv_usec = 0;
 
     struct peer_information * peer = malloc(sizeof(struct peer_information));
-    peer->sock_fd = edsm_socket_connect(hostname, port, &timeout);
+    peer->sock_fd = -1;
+    for (int i = 0; i < 20; ++i) {
+        peer->sock_fd = edsm_socket_connect(hostname, port, &timeout);
+        if(peer->sock_fd != -1 || running == 0) { //quit retrying if we connect or stop running
+            break;
+        }
+        sleep(2);
+        DEBUG_MSG("Retrying peer connection")
+    }
+
     //TODO refactor this to add sockaddr to peers struct
     if(peer->sock_fd == -1) {
         goto free_and_fail;
@@ -280,11 +286,6 @@ int edsm_proto_group_join(char *hostname, int port){
         return FAILURE;
 }
 
-int edsm_proto_group_leave() {
-    assert(0);
-    return FAILURE;
-}
-
 
 /*
  * FDSET ADD PEERS
@@ -293,7 +294,7 @@ int edsm_proto_group_leave() {
  * max_fd value.  Both of these operations are generally necessary before using
  * select().
  */
-void fdset_add_peers(const struct peer_information* head, fd_set* set, int* max_fd)
+void fdset_add_peers(fd_set *set, int *max_fd)
 {
     assert(set && max_fd);
 
@@ -361,9 +362,3 @@ void handle_disconnection(struct peer_information* peer)
     free(peer);
 }
 
-void remove_idle_clients(unsigned int timeout_sec)
-{
-    assert(peers);
-
-    //TODO: Adapt to peer information
-}
