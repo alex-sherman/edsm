@@ -17,6 +17,12 @@ struct edsm_proto_message_handler
     UT_hash_handle hh;
 };
 
+struct edsm_proto_peer_id
+{
+    uint32_t id;
+    struct edsm_proto_peer_id *next;
+};
+
 struct peer_information
 {
     uint32_t id;
@@ -27,6 +33,9 @@ struct peer_information
 
 void edsm_proto_listener_init(unsigned short port);
 void edsm_proto_shutdown();
+
+struct edsm_proto_peer_id *edsm_proto_peer_id_create(uint32_t peer_id);
+struct edsm_proto_peer_id *edsm_proto_get_peer_ids();
 
 struct peer_information *edsm_proto_get_peer(int peer_id);
 int edsm_proto_add_peer(struct peer_information);

@@ -1,7 +1,8 @@
 add_library(edsm SHARED
     edsm.h
     debug.c
-    dobj.c
+    dobj/dobj.c
+    dobj/reply_waiter.c
     message.c
     protocol.c
     socket.c

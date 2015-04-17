@@ -1,6 +1,7 @@
 #include "debug.h"
 #include "protocol.h"
 #include <errno.h>
+#include "utlist.h"
 
 int listen_sock;
 volatile int running;
@@ -36,6 +37,23 @@ void edsm_proto_shutdown()
     running = 0;
     pthread_join(wait_thread, NULL);
     close(listen_sock);
+}
+
+struct edsm_proto_peer_id *edsm_proto_peer_id_create(uint32_t peer_id)
+{
+    struct edsm_proto_peer_id *peer = malloc(sizeof(struct edsm_proto_peer_id));
+    peer->id = peer_id;
+    peer->next = NULL;
+    return peer;
+}
+struct edsm_proto_peer_id *edsm_proto_get_peer_ids()
+{
+    struct edsm_proto_peer_id *output = NULL;
+    struct peer_information *peer, *tmp;
+    HASH_ITER(hh, peers, peer, tmp) {
+        LL_APPEND(output, edsm_proto_peer_id_create(peer->id));
+    }
+    return output;
 }
 
 void listen_thread() {

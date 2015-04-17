@@ -1,22 +1,19 @@
 #ifndef EDSM_DOBJ_H
 #define EDSM_DOBJ_H
 
+#include <edsm.h>
+#include "reply_waiter.h"
+
 typedef struct edsm_dobj edsm_dobj;
 
 typedef int (*edsm_dobj_message_handler_f)(edsm_dobj *dobj, uint32_t peer_id, edsm_message *msg);
-
-struct edsm_dobj_peer
-{
-    uint32_t id;
-    struct edsm_dobj_peer *next;
-    struct edsm_dobj_peer *prev;
-};
 
 struct edsm_dobj
 {
     uint32_t id;
     edsm_dobj_message_handler_f handler;
-    struct edsm_dobj_peer *peers;
+    struct edsm_proto_peer_id *peers;
+    edsm_reply_waiter *waiter;
     UT_hash_handle hh;
 };
 
