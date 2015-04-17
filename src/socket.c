@@ -16,7 +16,6 @@
 #include "utlist.h"
 
 int set_nonblock(int sockfd, int enable);
-int build_sockaddr(const char* ip, unsigned short port, struct sockaddr_storage* dest);
 
 /*
  * TCP PASSIVE OPEN
@@ -99,19 +98,12 @@ const static struct addrinfo tcp_active_hints_fallback = {
 /*
  * TCP ACTIVE OPEN
  */
-int edsm_socket_connect(const char *host, unsigned short port, struct timeval *timeout)
+int edsm_socket_connect(struct sockaddr_storage *dest, struct timeval *timeout)
 {
     int sockfd;
     int rtn;
-    struct sockaddr_storage dest;
-    rtn = build_sockaddr(host, port, &dest);
-    if(rtn == FAILURE || rtn > sizeof(struct sockaddr))
-    {
-        DEBUG_MSG("Build address failed or result was too large");
-        goto free_and_return;
-    }
 
-    sockfd = socket(dest.ss_family, SOCK_STREAM, IPPROTO_TCP);
+    sockfd = socket(dest->ss_family, SOCK_STREAM, IPPROTO_TCP);
     if(sockfd < 0) {
         ERROR_MSG("failed creating socket");
         goto free_and_return;
@@ -120,7 +112,7 @@ int edsm_socket_connect(const char *host, unsigned short port, struct timeval *t
     if(timeout)
         set_nonblock(sockfd, NONBLOCKING);
     
-    rtn = connect(sockfd, (struct sockaddr*)&dest, sizeof(struct sockaddr));
+    rtn = connect(sockfd, (struct sockaddr*)dest, sizeof(struct sockaddr));
     if(rtn == -1 && errno != EINPROGRESS) {
         ERROR_MSG("connect");
         goto close_and_return;
@@ -226,7 +218,7 @@ const static struct addrinfo build_sockaddr_hints_fallback = {
     .ai_flags = AI_NUMERICSERV | AI_V4MAPPED,
 };
 
-int build_sockaddr(const char* ip, unsigned short port, struct sockaddr_storage* dest)
+int edsm_socket_build_sockaddr(const char *ip, unsigned short port, struct sockaddr_storage *dest)
 {
     assert(ip && dest);
 

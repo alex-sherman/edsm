@@ -17,8 +17,8 @@
 
 //SOMAXCONN is a good value for backlog
 int edsm_socket_listen(unsigned short local_port, int backlog);
-int edsm_socket_connect(const char *host, unsigned short port, struct timeval *timeout);
-
+int edsm_socket_connect(struct sockaddr_storage *dest, struct timeval *timeout);
+int edsm_socket_build_sockaddr(const char *ip, unsigned short port, struct sockaddr_storage *dest);
 int edsm_socket_read(int sockfd, char *buffer, int size);
 
 
