@@ -203,13 +203,24 @@ struct peer_information *edsm_proto_get_peer(int peer_id) {
 
 int edsm_proto_send(uint32_t peer_id, uint32_t msg_type, edsm_message * msg) {
     //DEBUG_MSG("Send message to: %d", peer_id);
-    struct peer_information * peer;
-    HASH_FIND_INT(peers, &peer_id, peer);
-    if(peer == NULL){
-        DEBUG_MSG("Peer lookup failed for %d", peer_id);
-        return FAILURE;
+    if(peer_id != 0) {
+        struct peer_information *peer;
+        HASH_FIND_INT(peers, &peer_id, peer);
+        if (peer == NULL) {
+            DEBUG_MSG("Peer lookup failed for %d", peer_id);
+            return FAILURE;
+        }
+        assert(peer->sock_fd != -1);
+        return fd_send_message(peer->sock_fd, msg_type, msg);
+    } else { //if the peer ID is 0, broadcast the message
+        struct peer_information *peer, *tmp;
+        HASH_ITER(hh, peers, peer, tmp) {
+            assert(peer->sock_fd != -1);
+            int rc = fd_send_message(peer->sock_fd, msg_type, msg);
+            if(rc == FAILURE) return FAILURE;
+        }
     }
-    return fd_send_message(peer->sock_fd, msg_type, msg);
+    return SUCCESS;
 }
 int fd_send_message(int sock_fd, uint32_t msg_type, edsm_message * msg) {
     edsm_message_push(msg, sizeof(msg_type));
