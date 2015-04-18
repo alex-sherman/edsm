@@ -35,7 +35,7 @@ int edsm_task_send_up_call(struct edsm_task_information *task, uint32_t peer_id,
     edsm_message * msg = edsm_message_create(EDSM_PROTO_HEADER_SIZE, 100);
     edsm_message_write_string(msg, (char *)task->name);
     edsm_message_write(msg, &event, sizeof(event));
-    edsm_message_write_message(msg, NULL);
+    edsm_message_write_message(msg, params);
     return edsm_proto_send(peer_id, MSG_TYPE_TASK, msg);
 }
 
