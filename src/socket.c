@@ -112,7 +112,7 @@ int edsm_socket_connect(struct sockaddr_storage *dest, struct timeval *timeout)
     if(timeout)
         set_nonblock(sockfd, NONBLOCKING);
     
-    rtn = connect(sockfd, (struct sockaddr*)dest, sizeof(struct sockaddr));
+    rtn = connect(sockfd, (struct sockaddr*)dest, sizeof(struct sockaddr_storage));
     if(rtn == -1 && errno != EINPROGRESS) {
         ERROR_MSG("connect");
         goto close_and_return;
@@ -206,6 +206,45 @@ int set_nonblock(int sockfd, int enable)
     }
 
     return 0;
+}
+
+// change the port number in the addr struct to be port
+// works with both IPv4 and 6
+void edsm_socket_set_sockaddr_port(struct sockaddr_storage *addr, unsigned short port) {
+    // deal with both IPv4 and IPv6:
+    if (addr->ss_family == AF_INET) {
+        struct sockaddr_in *s = (struct sockaddr_in *)addr;
+        s->sin_port = htons(port);
+    } else { // AF_INET6
+        struct sockaddr_in6 *s = (struct sockaddr_in6 *)addr;
+        s->sin6_port = htons(port);
+    }
+}
+
+//make sure to free the returned string when done using it
+// if you want to know the port #, provide a pointer in the port variable, otherwise null
+char *edsm_socket_addr_to_string(struct sockaddr_storage * addr, int * port) {
+    char *ipstr = malloc(INET6_ADDRSTRLEN + 20);
+    memset(ipstr, '\0', INET6_ADDRSTRLEN + 20);
+    int portnum;
+
+    // deal with both IPv4 and IPv6:
+    if (addr->ss_family == AF_INET) {
+        struct sockaddr_in *s = (struct sockaddr_in *)addr;
+        portnum = ntohs(s->sin_port);
+        inet_ntop(AF_INET, &s->sin_addr, ipstr, INET6_ADDRSTRLEN);
+    } else { // AF_INET6
+        struct sockaddr_in6 *s = (struct sockaddr_in6 *)addr;
+        portnum = ntohs(s->sin6_port);
+        inet_ntop(AF_INET6, &s->sin6_addr, ipstr, INET6_ADDRSTRLEN);
+    }
+
+    //printf("Peer IP address: %s\n", ipstr);
+    //printf("Peer port      : %d\n", port);
+
+    if(port != NULL)
+        *port = portnum;
+    return ipstr;
 }
 
 const static struct addrinfo build_sockaddr_hints = {

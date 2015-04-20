@@ -27,7 +27,7 @@ struct peer_information
 {
     uint32_t id;
     int sock_fd;
-    struct sockaddr addr;
+    struct sockaddr_storage addr;
     UT_hash_handle hh;
 };
 
