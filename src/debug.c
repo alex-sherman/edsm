@@ -112,8 +112,6 @@ void print_backtrace(FILE *out)
 
 void segfault_handler(int signo)
 {
-    if(signo == SIGSEGV) {
-        print_backtrace(stderr);
-        exit(1);
-    }
+    print_backtrace(stderr);
+    exit(1);
 }

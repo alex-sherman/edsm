@@ -17,7 +17,8 @@ int main(int argc, char **argv)
         printf("Usage: edsmd <listen_port> <task directory> [group hostname] [group port]\n");
         exit(0);
     }
-
+    signal(SIGSEGV, segfault_handler);
+    signal(SIGABRT, segfault_handler);
     signal(SIGINT, shutdown_handler);
     signal(SIGTERM, shutdown_handler);
     unsigned short listen_port = atoi(argv[1]);

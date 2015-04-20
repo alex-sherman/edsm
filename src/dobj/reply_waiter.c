@@ -19,8 +19,10 @@ int edsm_reply_waiter_add_reply(edsm_reply_waiter *waiter, uint32_t peer_id)
     struct edsm_proto_peer_id *peer, *tmp;
     LL_FOREACH_SAFE(waiter->wait_on, peer, tmp)
     {
-        if(peer->id == peer_id)
+        if(peer->id == peer_id){
             LL_DELETE(waiter->wait_on, peer);
+            free(peer);
+        }
     }
     pthread_mutex_unlock(&waiter->lock);
 
