@@ -22,15 +22,16 @@ void read_peerlist_from_message(edsm_message * msg);
 int peer_join(struct peer_information * peer);
 int connect_to_new_peers();
 int handle_new_connection(int server_sock);
-void handle_disconnection(struct peer_information* peer);
+struct peer_information * initialize_peer();
+void destroy_peer(struct peer_information* peer);
 void fdset_add_peers(fd_set *set, int *max_fd);
 uint32_t get_next_peer_id();
 
 
 void edsm_proto_listener_init(unsigned short port) {
+    listen_port = port;
     int rc = pthread_create(&wait_thread, NULL, (void * (*)(void *))listen_thread, NULL);
     assert(rc == 0);
-    listen_port = port;
 }
 void edsm_proto_shutdown()
 {
@@ -113,7 +114,6 @@ void listen_thread() {
                         edsm_message_destroy(new_msg);
                     } else { 
                         DEBUG_MSG("Reading in a peer message failed");
-                        handle_disconnection(s);
                         running = 0;
                     }
                 }
@@ -255,17 +255,16 @@ void read_peerlist_from_message(edsm_message * msg) {
     edsm_message_read(msg, &num_peers, sizeof(uint32_t));
     DEBUG_MSG("Reading peerlist from message with %d peers", num_peers);
     for (int i = 0; i < num_peers; ++i) {
-        struct peer_information* new_peer = malloc(sizeof(struct peer_information));
-        edsm_message_read(msg, &new_peer->id, sizeof(new_peer->id));
-        edsm_message_read(msg, &new_peer->addr, sizeof(new_peer->addr));
-        new_peer->sock_fd = -1;
-
+        uint32_t new_peer_id;
+        edsm_message_read(msg, &new_peer_id, sizeof(new_peer_id));
         struct peer_information *s;
-        HASH_FIND_INT(peers, &new_peer->id, s);
+        HASH_FIND_INT(peers, &new_peer_id, s);
         if (s==NULL) {
+            struct peer_information* new_peer = initialize_peer();
+            new_peer->id = new_peer_id;
+            edsm_message_read(msg, &new_peer->addr, sizeof(new_peer->addr));
+            new_peer->sock_fd = -1;
             HASH_ADD_INT(peers, id, new_peer);
-        } else { // if we already have this peer in the hash we can ignore it
-            free(new_peer);
         }
     }
 }
@@ -280,27 +279,41 @@ int edsm_proto_send(uint32_t peer_id, uint32_t msg_type, edsm_message * msg) {
             return FAILURE;
         }
         assert(peer->sock_fd != -1);
-        return fd_send_message(peer->sock_fd, msg_type, msg);
+        pthread_mutex_lock(&peer->send_lock);
+        int rc = fd_send_message(peer->sock_fd, msg_type, msg);
+        pthread_mutex_unlock(&peer->send_lock);
+        return rc;
     } else { //if the peer ID is 0, broadcast the message
         struct peer_information *peer, *tmp;
         HASH_ITER(hh, peers, peer, tmp) {
             assert(peer->sock_fd != -1);
+            pthread_mutex_lock(&peer->send_lock);
             int rc = fd_send_message(peer->sock_fd, msg_type, msg);
+            pthread_mutex_unlock(&peer->send_lock);
             if(rc == FAILURE) return FAILURE;
         }
     }
     return SUCCESS;
 }
 int fd_send_message(int sock_fd, uint32_t msg_type, edsm_message * msg) {
-    edsm_message_push(msg, sizeof(msg_type));
-    *(uint32_t *)msg->data = msg_type;
+    //write the size of the following message to the socket + space for the message type
+    uint32_t msg_body_size = msg->data_size + (uint32_t)sizeof(msg_type); // We can't count the size itself as part something to read
+    ssize_t bytes = write(sock_fd, &msg_body_size, sizeof msg_body_size);
+    if(bytes <= 0)
+    {
+        DEBUG_MSG("Socket send failed");
+        return FAILURE;
+    }
 
-    uint32_t msg_body_size = msg->data_size; // We can't count the size itself as part something to read
-    edsm_message_push(msg, sizeof(msg_body_size));
-    *(uint32_t *)msg->data = msg_body_size;
+    bytes = write(sock_fd, &msg_type, sizeof msg_type);
+    if(bytes <= 0)
+    {
+        DEBUG_MSG("Socket send failed");
+        return FAILURE;
+    }
 
     //DEBUG_MSG("Sending message with data size %d", msg_body_size);
-    ssize_t bytes = write(sock_fd, msg->data, msg->data_size);
+    bytes = write(sock_fd, msg->data, msg->data_size);
     if(bytes <= 0)
     {
         DEBUG_MSG("Socket send failed");
@@ -322,7 +335,7 @@ int edsm_proto_register_handler(int message_type, edsm_proto_message_handler_f h
 int edsm_proto_group_join(char *hostname, unsigned short port){
     DEBUG_MSG("Joining group %s", hostname);
 
-    struct peer_information * peer = malloc(sizeof(struct peer_information));
+    struct peer_information * peer = initialize_peer();
 
     int rtn = edsm_socket_build_sockaddr(hostname, port, &peer->addr);
     if(rtn == FAILURE || rtn > sizeof(struct sockaddr_storage))
@@ -340,7 +353,7 @@ int edsm_proto_group_join(char *hostname, unsigned short port){
     return SUCCESS;
 
     free_and_fail:
-        free(peer);
+        destroy_peer(peer);
         return FAILURE;
 }
 // used by group join to connect and exchange init with peer
@@ -370,7 +383,7 @@ int peer_join(struct peer_information * peer) {
 
     // Send an init message
     size_t init_size = sizeof(uint32_t) + sizeof(listen_port);
-    edsm_message * init_msg = edsm_message_create(EDSM_PROTO_HEADER_SIZE, (int)init_size);
+    edsm_message * init_msg = edsm_message_create(0, (int)init_size);
     edsm_message_write(init_msg, &my_id, sizeof(uint32_t));
     edsm_message_write(init_msg, &listen_port, sizeof(listen_port));
     if(fd_send_message(peer->sock_fd, MSG_TYPE_PROTO_INIT, init_msg) == FAILURE) {
@@ -416,6 +429,19 @@ int connect_to_new_peers() {
     return SUCCESS;
 }
 
+struct peer_information * initialize_peer() {
+    struct peer_information * peer = malloc(sizeof(struct peer_information));
+    memset(peer,0,sizeof(struct peer_information));
+    peer->sock_fd = -1;
+    pthread_mutex_init(&peer->send_lock, NULL);
+    return peer;
+}
+
+void destroy_peer(struct peer_information * peer) {
+    pthread_mutex_destroy(&peer->send_lock);
+    free(peer);
+}
+
 /*
  * FDSET ADD PEERS
  *
@@ -451,7 +477,7 @@ uint32_t get_next_peer_id() {
 int handle_new_connection(int server_sock)
 {
     struct peer_information * peer;
-    peer = malloc(sizeof(struct peer_information));
+    peer = initialize_peer();
     socklen_t addr_size = sizeof(peer->addr);
     peer->sock_fd = accept(server_sock, (struct sockaddr*) &peer->addr, &addr_size);
     if(peer->sock_fd == -1) {
@@ -472,7 +498,7 @@ int handle_new_connection(int server_sock)
         goto close_and_fail;
     }
     size_t init_response_size = 3*sizeof(uint32_t) + HASH_COUNT(peers) * (sizeof(struct sockaddr_storage) + sizeof(uint32_t)); //TODO maybe this size could be computed more gracefully
-    edsm_message *init_response = edsm_message_create(EDSM_PROTO_HEADER_SIZE, (int)init_response_size);
+    edsm_message *init_response = edsm_message_create(0, (int)init_response_size);
     edsm_message_write(init_response, &my_id, sizeof(uint32_t)); // tell the peer this node's id
     edsm_message_write(init_response, &(peer->id), sizeof(uint32_t)); //respond with the ID of the peer
     append_peerlist_to_message(init_response);
@@ -497,18 +523,7 @@ int handle_new_connection(int server_sock)
     close_and_fail:
         close(peer->sock_fd);
     free_and_fail:
-        free(peer);
+        destroy_peer(peer);
         return FAILURE;
-}
-
-void handle_disconnection(struct peer_information* peer)
-{
-    assert(peers);
-
-    close(peer->sock_fd);
-    peer->sock_fd = -1;
-
-    HASH_DEL(peers, peer);
-    free(peer);
 }
 

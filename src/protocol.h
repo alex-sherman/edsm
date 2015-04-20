@@ -7,8 +7,6 @@
 #include "message.h"
 #include "socket.h"
 
-#define EDSM_PROTO_HEADER_SIZE 8
-
 typedef int (*edsm_proto_message_handler_f)(uint32_t peer_id, edsm_message *msg);
 struct edsm_proto_message_handler
 {
@@ -28,6 +26,7 @@ struct peer_information
     uint32_t id;
     int sock_fd;
     struct sockaddr_storage addr;
+    pthread_mutex_t send_lock;
     UT_hash_handle hh;
 };
 

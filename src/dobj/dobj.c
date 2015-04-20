@@ -26,7 +26,7 @@ uint32_t edsm_dobj_create()
 {
     //TODO: Lock object_log
     _max_obj_id++;
-    edsm_message *msg = edsm_message_create(EDSM_PROTO_HEADER_SIZE, sizeof(_max_obj_id));
+    edsm_message *msg = edsm_message_create(0, sizeof(_max_obj_id));
     edsm_message_write(msg, &_max_obj_id, sizeof(_max_obj_id));
 
     return _max_obj_id;
@@ -58,7 +58,7 @@ void _add_peer_reference(uint32_t peer_id, edsm_dobj *dobj)
 
 int edsm_dobj_send_get_reply(uint32_t peer_id, uint32_t dobj_id, uint32_t have_reference)
 {
-    edsm_message *msg = edsm_message_create(EDSM_PROTO_HEADER_SIZE, 8);
+    edsm_message *msg = edsm_message_create(0, 8);
     edsm_message_write(msg, &DOBJ_MSG_TYPE_GET_REPLY, sizeof(DOBJ_MSG_TYPE_GET_REPLY));
     edsm_message_write(msg, &dobj_id, sizeof(dobj_id));
     edsm_message_write(msg, &have_reference, sizeof(have_reference));
@@ -85,7 +85,7 @@ int edsm_dobj_handle_get_reply(uint32_t peer_id, edsm_message *msg)
 
 int edsm_dobj_send_get(uint32_t dobj_id)
 {
-    edsm_message *msg = edsm_message_create(EDSM_PROTO_HEADER_SIZE, 8);
+    edsm_message *msg = edsm_message_create(0, 8);
     edsm_message_write(msg, &DOBJ_MSG_TYPE_GET, sizeof(DOBJ_MSG_TYPE_GET));
     edsm_message_write(msg, &dobj_id, sizeof(dobj_id));
     return edsm_proto_send(0, MSG_TYPE_DOBJ, msg);
@@ -138,7 +138,7 @@ int edsm_dobj_send(edsm_dobj *dobj, edsm_message *dobj_msg)
     if(dobj->peers != NULL)
     {
         int rtn = SUCCESS;
-        edsm_message *msg = edsm_message_create(EDSM_PROTO_HEADER_SIZE, 8 + dobj_msg->data_size);
+        edsm_message *msg = edsm_message_create(0, 8 + dobj_msg->data_size);
         edsm_message_write(msg, &DOBJ_MSG_TYPE_OBJ_MSG, sizeof(DOBJ_MSG_TYPE_OBJ_MSG));
         edsm_message_write(msg, &dobj->id, sizeof(dobj->id));
         edsm_message_write_message(msg, dobj_msg);
@@ -146,7 +146,7 @@ int edsm_dobj_send(edsm_dobj *dobj, edsm_message *dobj_msg)
         struct edsm_proto_peer_id *peer;
         LL_FOREACH(dobj->peers, peer)
         {
-            if(edsm_proto_send(peer->id, MSG_TYPE_DOBJ, edsm_message_clone(msg)) == FAILURE){
+            if(edsm_proto_send(peer->id, MSG_TYPE_DOBJ, msg) == FAILURE){
                 rtn = FAILURE;
                 break;
             }
