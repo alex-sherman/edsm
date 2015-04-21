@@ -11,23 +11,31 @@ const uint32_t DOBJ_MSG_TYPE_OBJ_MSG    = 0x04;
 
 uint32_t _max_obj_id = 0;
 edsm_dobj *objects = NULL;
-edsm_dobj *object_lock = NULL;
+edsm_mutex *object_lock = NULL;
+pthread_mutex_t local_lock;
 
 int edsm_dobj_handle_message(uint32_t peer_id, edsm_message *msg);
 
 int edsm_dobj_init()
 {
     edsm_proto_register_handler(MSG_TYPE_DOBJ, edsm_dobj_handle_message);
-    object_lock = edsm_dobj_get(0, sizeof(edsm_dobj), NULL);
+    object_lock = edsm_mutex_get(0);
+    pthread_mutex_init(&local_lock, NULL);
     return SUCCESS;
 }
 
 uint32_t edsm_dobj_create()
 {
-    //TODO: Lock object_log
+    edsm_mutex_lock(object_lock);
     _max_obj_id++;
     edsm_message *msg = edsm_message_create(0, sizeof(_max_obj_id));
     edsm_message_write(msg, &_max_obj_id, sizeof(_max_obj_id));
+    if(edsm_proto_send(0, MSG_TYPE_DOBJ, msg) == FAILURE)
+    {
+        DEBUG_MSG("Failed to send object create message!");
+        abort();
+    }
+    edsm_mutex_unlock(object_lock);
 
     return _max_obj_id;
 }
@@ -99,7 +107,7 @@ int edsm_dobj_handle_get(uint32_t peer_id, edsm_message *msg)
 {
     edsm_dobj *dobj = NULL;
     uint32_t dobj_id = _read_dobj(msg, &dobj);
-    //TODO: Lock locally on objects
+    pthread_mutex_lock(&local_lock);
     if(dobj != NULL)
     {
         _add_peer_reference(peer_id, dobj);
@@ -110,13 +118,16 @@ int edsm_dobj_handle_get(uint32_t peer_id, edsm_message *msg)
         edsm_dobj_send_get_reply(peer_id, dobj_id, 0);
         DEBUG_MSG("Sending negative response");
     }
+    pthread_mutex_unlock(&local_lock);
     return SUCCESS;
 }
 
 void *edsm_dobj_get(uint32_t id, size_t size, edsm_dobj_message_handler_f handler)
 {
     assert(size >= sizeof(edsm_dobj));
-    //TODO: Lock locally objects
+
+    pthread_mutex_lock(&local_lock);
+
     edsm_dobj *output = NULL;
     HASH_FIND_INT(objects, &id, output);
     if(output == NULL)
@@ -127,12 +138,20 @@ void *edsm_dobj_get(uint32_t id, size_t size, edsm_dobj_message_handler_f handle
         output->handler = handler;
         output->waiter = edsm_reply_waiter_create();
         HASH_ADD_INT(objects, id, output);
+
+        pthread_mutex_unlock(&local_lock);
+
         edsm_reply_waiter_set_wait_on(output->waiter, edsm_proto_get_peer_ids());
         edsm_dobj_send_get(id);
         DEBUG_MSG("Object get sent %d", id);
         edsm_reply_waiter_wait(output->waiter);
+
+        pthread_mutex_lock(&local_lock);
     }
     output->ref_count++;
+
+    pthread_mutex_unlock(&local_lock);
+
     return output;
 }
 
