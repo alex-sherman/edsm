@@ -13,6 +13,7 @@ struct peer_information *peers = NULL;
 struct edsm_proto_message_handler *message_handlers = NULL;
 
 void listen_thread();
+int handle_message(edsm_message * msg, uint32_t msg_type, uint32_t peer_id);
 edsm_message *read_message_from_socket(int fd);
 int fd_send_message(int sock_fd, uint32_t msg_type, edsm_message * msg);
 int read_and_handle_init_message(struct peer_information *peer);
@@ -102,15 +103,7 @@ void listen_thread() {
                     if(new_msg != NULL) {
                         uint32_t msg_type;
                         edsm_message_read(new_msg, &msg_type, 4);
-                        struct edsm_proto_message_handler *handler = NULL;
-                        HASH_FIND_INT(message_handlers, &msg_type, handler);
-                        if(handler != NULL)
-                        {
-                            handler->handler_func(s->id, new_msg);
-                        }
-                        else{
-                            DEBUG_MSG("Received message with unhandled type: %d", msg_type);
-                        }
+                        handle_message(new_msg, msg_type, s->id);
                         edsm_message_destroy(new_msg);
                     } else { 
                         DEBUG_MSG("Reading in a peer message failed");
@@ -127,6 +120,20 @@ void listen_thread() {
     for(s=peers; s != NULL; s=s->hh.next) {
         DEBUG_MSG("Closing peer %d socket_fd %d", s->id, s->sock_fd);
         close(s->sock_fd);
+    }
+}
+// call the appropriate message handler callback for the message msg received from peer_id with type msg_type
+int handle_message(edsm_message * msg, uint32_t msg_type, uint32_t peer_id) {
+    struct edsm_proto_message_handler *handler = NULL;
+    HASH_FIND_INT(message_handlers, &msg_type, handler);
+    if(handler != NULL)
+    {
+        handler->handler_func(peer_id, msg);
+        return SUCCESS;
+    }
+    else{
+        DEBUG_MSG("Received message with unhandled type: %d", msg_type);
+        return FAILURE;
     }
 }
 edsm_message *read_message_from_socket(int fd) {
@@ -272,17 +279,24 @@ void read_peerlist_from_message(edsm_message * msg) {
 int edsm_proto_send(uint32_t peer_id, uint32_t msg_type, edsm_message * msg) {
     //DEBUG_MSG("Send message to: %d", peer_id);
     if(peer_id != 0) {
-        struct peer_information *peer;
-        HASH_FIND_INT(peers, &peer_id, peer);
-        if (peer == NULL) {
-            DEBUG_MSG("Peer lookup failed for %d", peer_id);
-            return FAILURE;
+        if(peer_id == my_id)
+        {
+            edsm_message * clone = edsm_message_clone(msg);
+            handle_message(clone, msg_type, peer_id);
+            edsm_message_destroy(clone);
+        } else {
+            struct peer_information *peer;
+            HASH_FIND_INT(peers, &peer_id, peer);
+            if (peer == NULL) {
+                DEBUG_MSG("Peer lookup failed for %d", peer_id);
+                return FAILURE;
+            }
+            assert(peer->sock_fd != -1);
+            pthread_mutex_lock(&peer->send_lock);
+            int rc = fd_send_message(peer->sock_fd, msg_type, msg);
+            pthread_mutex_unlock(&peer->send_lock);
+            return rc;
         }
-        assert(peer->sock_fd != -1);
-        pthread_mutex_lock(&peer->send_lock);
-        int rc = fd_send_message(peer->sock_fd, msg_type, msg);
-        pthread_mutex_unlock(&peer->send_lock);
-        return rc;
     } else { //if the peer ID is 0, broadcast the message
         struct peer_information *peer, *tmp;
         HASH_ITER(hh, peers, peer, tmp) {
