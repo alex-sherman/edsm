@@ -390,6 +390,7 @@ int peer_join(struct peer_information * peer) {
         DEBUG_MSG("Sending init msg failed");
         goto close_and_fail;
     }
+    edsm_message_destroy(init_msg);
     DEBUG_MSG("Reading init response from peer");
     if(read_and_handle_init_response(&peer->id, peer->sock_fd) == FAILURE)
     {
@@ -506,6 +507,7 @@ int handle_new_connection(int server_sock)
         DEBUG_MSG("Sending init response failed");
         goto close_and_fail;
     }
+    edsm_message_destroy(init_response);
 
     // // All of our sockets will be non-blocking since they are handled by a
     // // single thread, and we cannot have one evil client hold up the rest.

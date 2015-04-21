@@ -3,3 +3,7 @@
 //
 
 #include "memory.h"
+
+void *edsm_memory_region_create(uint32_t size, uint32_t *key) {
+    return NULL;
+}
