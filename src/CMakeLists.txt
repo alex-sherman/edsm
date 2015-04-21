@@ -9,7 +9,8 @@ add_library(edsm SHARED
     socket.c
     task.c
     timing.c
-)
+    memory/memory.h
+    memory/memory.c)
 
 target_include_directories (edsm PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(edsm dl pthread)
