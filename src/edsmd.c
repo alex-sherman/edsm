@@ -44,16 +44,17 @@ int main(int argc, char **argv)
     d = opendir(path);
     if (d)
     {
+        regex_t regex;
+        char msgbuf[100];
+
+        int reti = regcomp(&regex, "^task.*\\.so", 0);
+        if (reti) {
+            fprintf(stderr, "Could not compile regex\n");
+            exit(1);
+        }
+
         while ((dir = readdir(d)) != NULL)
         {
-            regex_t regex;
-            char msgbuf[100];
-
-            int reti = regcomp(&regex, "^task.*\\.so", 0);
-            if (reti) {
-                fprintf(stderr, "Could not compile regex\n");
-                exit(1);
-            }
 
             /* Execute regular expression */
             reti = regexec(&regex, dir->d_name, 0, NULL, 0);
@@ -68,6 +69,7 @@ int main(int argc, char **argv)
                 exit(1);
             }
         }
+        regfree(&regex);
         closedir(d);
     }
     running = 1;

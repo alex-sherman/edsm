@@ -62,7 +62,9 @@ int edsm_dobj_send_get_reply(uint32_t peer_id, uint32_t dobj_id, uint32_t have_r
     edsm_message_write(msg, &DOBJ_MSG_TYPE_GET_REPLY, sizeof(DOBJ_MSG_TYPE_GET_REPLY));
     edsm_message_write(msg, &dobj_id, sizeof(dobj_id));
     edsm_message_write(msg, &have_reference, sizeof(have_reference));
-    return edsm_proto_send(peer_id, MSG_TYPE_DOBJ, msg);
+    int rtn = edsm_proto_send(peer_id, MSG_TYPE_DOBJ, msg);
+    edsm_message_destroy(msg);
+    return rtn;
 }
 
 int edsm_dobj_handle_get_reply(uint32_t peer_id, edsm_message *msg)
@@ -88,7 +90,9 @@ int edsm_dobj_send_get(uint32_t dobj_id)
     edsm_message *msg = edsm_message_create(0, 8);
     edsm_message_write(msg, &DOBJ_MSG_TYPE_GET, sizeof(DOBJ_MSG_TYPE_GET));
     edsm_message_write(msg, &dobj_id, sizeof(dobj_id));
-    return edsm_proto_send(0, MSG_TYPE_DOBJ, msg);
+    int rtn = edsm_proto_send(0, MSG_TYPE_DOBJ, msg);
+    edsm_message_destroy(msg);
+    return rtn;
 }
 
 int edsm_dobj_handle_get(uint32_t peer_id, edsm_message *msg)
@@ -151,6 +155,7 @@ int edsm_dobj_send(edsm_dobj *dobj, edsm_message *dobj_msg)
                 break;
             }
         }
+        edsm_message_destroy(msg);
         return rtn;
     }
     return SUCCESS;
@@ -182,6 +187,7 @@ int edsm_dobj_handle_message(uint32_t peer_id, edsm_message *msg)
             edsm_message *dobj_msg;
             if(edsm_message_read_message(msg, &dobj_msg) != FAILURE){
                 dobj->handler(dobj, peer_id, dobj_msg);
+                edsm_message_destroy(dobj_msg);
             }
         }
         else

@@ -20,6 +20,7 @@ int edsm_mutex_send_reply(edsm_mutex *mutex, uint32_t peer_id)
     edsm_message_write(reply, &EDSM_MUTEX_MSG_TYPE_REPLY, sizeof(EDSM_MUTEX_MSG_TYPE_REPLY));
     edsm_message_write(reply, &l_time, sizeof(l_time));
     edsm_dobj_send((edsm_dobj *)mutex, reply);
+    edsm_message_destroy(reply);
     return SUCCESS;
 }
 
@@ -88,6 +89,7 @@ int edsm_mutex_lock(edsm_mutex *mutex)
     edsm_message_write(msg, &EDSM_MUTEX_MSG_TYPE_REQUEST, sizeof(EDSM_MUTEX_MSG_TYPE_REQUEST));
     edsm_message_write(msg, &l_time, sizeof(l_time));
     edsm_dobj_send((edsm_dobj *)mutex, msg);
+    edsm_message_destroy(msg);
 
     mutex->local_request = malloc(sizeof(request_entry));
     mutex->local_request->l_time = l_time;
