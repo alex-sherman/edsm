@@ -4,6 +4,7 @@
 #include <dirent.h>
 #include <regex.h>
 #include <signal.h>
+#include <memory/memory.h>
 
 #include "debug.h"
 
@@ -24,6 +25,7 @@ int main(int argc, char **argv)
     unsigned short listen_port = atoi(argv[1]);
     if(argc == 3) edsm_proto_set_local_id(1);
     edsm_proto_listener_init(listen_port);
+    edsm_memory_init();
     edsm_task_init();
     edsm_dobj_init();
     if(argc > 4){
@@ -73,7 +75,7 @@ int main(int argc, char **argv)
         closedir(d);
     }
     running = 1;
-    while(running) { }
+    while(running) { sleep(1);}
 }
 
 static void shutdown_handler(int signo)

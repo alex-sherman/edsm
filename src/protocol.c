@@ -118,8 +118,8 @@ void listen_thread() {
     //after done running, close peer sockets
     struct peer_information *s;
     for(s=peers; s != NULL; s=s->hh.next) {
-        DEBUG_MSG("Closing peer %d socket_fd %d", s->id, s->sock_fd);
-        close(s->sock_fd);
+        DEBUG_MSG("Destroying peer %d with socket_fd %d", s->id, s->sock_fd);
+        destroy_peer(s);
     }
 }
 // call the appropriate message handler callback for the message msg received from peer_id with type msg_type
