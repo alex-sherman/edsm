@@ -20,7 +20,7 @@ struct edsm_task_information
 };
 
 int edsm_task_init();
-int edsm_task_send_up_call(struct edsm_task_information *task, uint32_t peer_id, uint32_t event, edsm_message *params);
+int edsm_task_send_up_call(const char *task_name, uint32_t peer_id, uint32_t event, edsm_message *params);
 struct edsm_task_information *edsm_task_link(const char *name, char *path);
 
 

@@ -84,6 +84,8 @@ int edsm_mutex_lock(edsm_mutex *mutex)
 
     mutex->l_time++;
 
+    edsm_reply_waiter_set_wait_on(mutex->waiter, edsm_dobj_get_peers((edsm_dobj *)mutex));
+
     edsm_message *msg = edsm_message_create(0, 8);
     uint32_t l_time = mutex->l_time;
     edsm_message_write(msg, &EDSM_MUTEX_MSG_TYPE_REQUEST, sizeof(EDSM_MUTEX_MSG_TYPE_REQUEST));
@@ -96,7 +98,7 @@ int edsm_mutex_lock(edsm_mutex *mutex)
     mutex->local_request->peer_id = edsm_proto_local_id();
     pthread_mutex_unlock(&mutex->lock);
 
-    edsm_reply_waiter_wait(mutex->waiter, edsm_dobj_get_peers((edsm_dobj *)mutex));
+    edsm_reply_waiter_wait(mutex->waiter);
 
     return SUCCESS;
 }

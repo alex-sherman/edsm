@@ -13,6 +13,13 @@ edsm_reply_waiter *edsm_reply_waiter_create()
     return waiter;
 }
 
+void edsm_reply_waiter_set_wait_on(edsm_reply_waiter *waiter, struct edsm_proto_peer_id *peers)
+{
+    pthread_mutex_lock(&waiter->lock);
+    waiter->wait_on = peers;
+    pthread_mutex_unlock(&waiter->lock);
+}
+
 int edsm_reply_waiter_add_reply(edsm_reply_waiter *waiter, uint32_t peer_id)
 {
     pthread_mutex_lock(&waiter->lock);
@@ -30,10 +37,9 @@ int edsm_reply_waiter_add_reply(edsm_reply_waiter *waiter, uint32_t peer_id)
     return SUCCESS;
 }
 
-int edsm_reply_waiter_wait(edsm_reply_waiter *waiter, struct edsm_proto_peer_id *peers)
+int edsm_reply_waiter_wait(edsm_reply_waiter *waiter)
 {
     pthread_mutex_lock(&waiter->lock);
-    waiter->wait_on = peers;
     while(waiter->wait_on != NULL)
     {
         pthread_cond_wait(&waiter->condition, &waiter->lock);

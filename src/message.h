@@ -48,12 +48,12 @@ int edsm_message_write(edsm_message *msg, const void *data, int bytes);
 int edsm_message_read(edsm_message *msg, void *dest, int bytes);
 
 // Puts a small arbitrary length sub message into a message and prefixes it with the length
-int edsm_message_write_message(edsm_message *dst, edsm_message *val);
+int edsm_message_write_message(edsm_message *dst, const edsm_message *val);
 // Mallocs a new message and puts the aforementioned submessage into it
 int edsm_message_read_message(edsm_message *msg, edsm_message **dst);
 
 // Write a string to a message, prefixed by its length
-int edsm_message_write_string(edsm_message *dst, char *str);
+int edsm_message_write_string(edsm_message *dst, const char *str);
 // Mallocs a new string and reads one from msg, returns pointer to it
 char *edsm_message_read_string(edsm_message *msg);
 

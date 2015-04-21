@@ -141,7 +141,7 @@ int edsm_message_read(edsm_message *msg, void *dst, int bytes)
     return SUCCESS;
 }
 
-int edsm_message_write_message(edsm_message *dst, edsm_message *val)
+int edsm_message_write_message(edsm_message *dst, const edsm_message *val)
 {
     uint32_t size;
     if(val == NULL)
@@ -170,7 +170,7 @@ int edsm_message_read_message(edsm_message *msg, edsm_message **dst)
     return SUCCESS;
 }
 
-int edsm_message_write_string(edsm_message *dst, char *str)
+int edsm_message_write_string(edsm_message *dst, const char *str)
 {
     uint32_t size = strlen(str);
     if(edsm_message_write(dst, &size, sizeof(size)) == FAILURE) return FAILURE;

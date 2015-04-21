@@ -127,10 +127,10 @@ void *edsm_dobj_get(uint32_t id, size_t size, edsm_dobj_message_handler_f handle
         output->handler = handler;
         output->waiter = edsm_reply_waiter_create();
         HASH_ADD_INT(objects, id, output);
-        DEBUG_MSG("Object added");
+        edsm_reply_waiter_set_wait_on(output->waiter, edsm_proto_get_peer_ids());
         edsm_dobj_send_get(id);
-        DEBUG_MSG("Object get sent");
-        edsm_reply_waiter_wait(output->waiter, edsm_proto_get_peer_ids());
+        DEBUG_MSG("Object get sent %d", id);
+        edsm_reply_waiter_wait(output->waiter);
     }
     output->ref_count++;
     return output;
@@ -204,8 +204,8 @@ struct edsm_proto_peer_id *edsm_dobj_get_peers(edsm_dobj *dobj)
     struct edsm_proto_peer_id *out_head = NULL;
     LL_FOREACH(dobj->peers, peer)
     {
-        LL_APPEND(out_head, edsm_proto_peer_id_create(peer->id));
-        DEBUG_MSG("Adding peer %d", peer->id);
+        struct edsm_proto_peer_id *add_peer = edsm_proto_peer_id_create(peer->id);
+        LL_APPEND(out_head, add_peer);
     }
     return out_head;
 }
