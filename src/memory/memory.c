@@ -112,14 +112,16 @@ void tx_begin(void * addr) {
     if(remainder != 0)
         addr = (void *)((size_t)addr-remainder);
 
-    int rc = mprotect(addr, 1, PROT_READ | PROT_WRITE);
-    assert(rc == 0);
-
-    //mprotect is done, but we need to also twin the page
     edsm_memory_region * s = find_region_for_addr(addr);
     assert(s != NULL);
 
+    pthread_mutex_lock(&s->twin_lock);
     twin_page(s,addr);
+
+    //now that the page is twinned we can make it r/w, for this thread or others
+    int rc = mprotect(addr, 1, PROT_READ | PROT_WRITE);
+    assert(rc == 0);
+    pthread_mutex_unlock(&s->twin_lock);
 }
 
 edsm_message * tx_end(edsm_memory_region * region) {
@@ -144,8 +146,14 @@ edsm_message * tx_end(edsm_memory_region * region) {
 
 // diffs a region and adds it to msg
 void diff_region(edsm_memory_region * region, edsm_message*msg) {
+    //edsm_message_write(msg, , ) //TODO write the dobj id of the region to the message here or something
+    uint32_t * num_diffs = (uint32_t *)msg->data;
+    edsm_message_put(msg, sizeof(uint32_t)); //leave some space in the message for the count
     pthread_mutex_lock(&region->twin_lock);
+    struct page_twin * s;
+    LL_FOREACH(region->twins, s) {
 
+    }
     pthread_mutex_unlock(&region->twin_lock);
 }
 
@@ -156,18 +164,20 @@ void twin_page(edsm_memory_region * region, void*addr) {
 
     struct page_twin * twin = init_twin(region,addr);
 
-    pthread_mutex_lock(&region->twin_lock);
     struct page_twin * s = NULL;
     LL_SEARCH_SCALAR(region->twins, s, original_page_head, addr);
     if(s==NULL) {
         DEBUG_MSG("Region not twinned, doing so now");
+
+        int rc = mprotect(addr, 1, PROT_READ);
+        assert(rc == 0);
+
         memcpy(twin->twin_data, addr, pagesize);
         LL_PREPEND(region->twins, twin);
     } else { // else region is already twinned
         DEBUG_MSG("Region is already twinned, skipping it");
         destroy_twin(twin);
     }
-    pthread_mutex_unlock(&region->twin_lock);
 }
 
 
