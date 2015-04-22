@@ -17,13 +17,6 @@ typedef struct edsm_memory_region_s {
     struct edsm_memory_region_s * next;
 } edsm_memory_region;
 
-struct page_twin {
-    edsm_memory_region * parent_region;
-    void* original_page_head;
-    void* twin_data;
-    struct page_twin * next;
-};
-
 void edsm_memory_init();
 
 // Return the pointer to a memory region struct which contains a pointer to the head of the allocated region

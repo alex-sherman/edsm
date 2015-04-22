@@ -10,23 +10,35 @@
 #include <sys/mman.h>
 #include <signal.h>
 #include <utlist.h>
+#include <message.h>
 
 static void page_trap_handler(int sig, siginfo_t *si, void *unused);
+
 void tx_begin(void * addr);
+edsm_message * tx_end(edsm_memory_region * region);
+
 void region_protect(edsm_memory_region * region);
+void diff_region(edsm_memory_region * region, edsm_message*msg);
 void twin_page(edsm_memory_region * region, void*addr);
 edsm_memory_region * find_region_for_addr(void * addr);
 struct page_twin * init_twin(edsm_memory_region * region, void * head_addr);
 void destroy_twin(struct page_twin * twin);
 
+struct page_twin {
+    edsm_memory_region * parent_region;
+    void* original_page_head;
+    void* twin_data;
+    struct page_twin * next;
+};
+
 size_t pagesize;
 
-pthread_mutex_t regions_lock;
+pthread_rwlock_t regions_lock;
 edsm_memory_region * regions = NULL;
 
 void edsm_memory_init() {
     pagesize = (size_t) sysconf(_SC_PAGESIZE);
-    pthread_mutex_init(&regions_lock, NULL);
+    pthread_rwlock_init(&regions_lock, NULL);
 
     //set up the signal handler to trap memory accesses
     struct sigaction sa;
@@ -37,24 +49,23 @@ void edsm_memory_init() {
         ERROR_MSG("Signal handler setup");
     }
 
-    edsm_memory_region * region = edsm_memory_region_create(1);
-    ((int*)(region->head))[3] = 1;
-    DEBUG_MSG("Value %d", ((int*)(region->head))[3]);
-    region_protect(region);
-    ((int*)(region->head))[3] = 2;
-    DEBUG_MSG("Value %d", ((int*)(region->head))[3]);
-    region_protect(region);
-    ((int*)(region->head))[3] = 3;
-    DEBUG_MSG("Value %d", ((int*)(region->head))[3]);
+//    edsm_memory_region * region = edsm_memory_region_create(1);
+//    ((int*)(region->head))[3] = 1;
+//    DEBUG_MSG("Value %d", ((int*)(region->head))[3]);
+//    region_protect(region);
+//    ((int*)(region->head))[3] = 2;
+//    DEBUG_MSG("Value %d", ((int*)(region->head))[3]);
+//    region_protect(region);
+//    ((int*)(region->head))[3] = 3;
+//    DEBUG_MSG("Value %d", ((int*)(region->head))[3]);
 }
 
 static void page_trap_handler(int sig, siginfo_t *si, void *unused)
 {
-    printf("Got SIGSEGV at address: 0x%lx\n", (long) si->si_addr);
+    printf("Got SIGSEGV at address: 0x%lx", (long) si->si_addr);
     sleep(1);
     tx_begin(si->si_addr);
     return;
-    exit(EXIT_FAILURE);
 }
 
 edsm_memory_region *edsm_memory_region_create(size_t size) {
@@ -77,17 +88,17 @@ edsm_memory_region *edsm_memory_region_create(size_t size) {
     pthread_mutex_init(&new_region->twin_lock, NULL);
 
     //Add this region to our LL of regions
-    pthread_mutex_lock(&regions_lock);
+    pthread_rwlock_wrlock(&regions_lock);
     LL_PREPEND(regions, new_region);
-    pthread_mutex_unlock(&regions_lock);
+    pthread_rwlock_unlock(&regions_lock);
 
     return new_region;
 }
 
 void edsm_memory_region_destroy(edsm_memory_region *region) {
-    pthread_mutex_lock(&regions_lock);
+    pthread_rwlock_wrlock(&regions_lock);
     LL_DELETE(regions, region);
-    pthread_mutex_unlock(&regions_lock);
+    pthread_rwlock_unlock(&regions_lock);
 
     pthread_mutex_destroy(&region->twin_lock);
     free(region->head);
@@ -111,6 +122,33 @@ void tx_begin(void * addr) {
     twin_page(s,addr);
 }
 
+edsm_message * tx_end(edsm_memory_region * region) {
+    pthread_rwlock_rdlock(&regions_lock);
+    edsm_message * diff = edsm_message_create(sizeof(uint32_t),0); //leaving space at the beginning for how many regions have diffs
+    uint32_t num_diffs = 0;
+    if(region == NULL) {
+        edsm_memory_region *s;
+        LL_FOREACH(regions, s) {
+            diff_region(s, diff);
+            num_diffs++;
+        }
+    } else {
+        diff_region(region, diff);
+        num_diffs++;
+    }
+    edsm_message_push(diff, sizeof(num_diffs));
+    *(uint32_t *)diff->data = num_diffs;
+    pthread_rwlock_unlock(&regions_lock);
+    return NULL;
+}
+
+// diffs a region and adds it to msg
+void diff_region(edsm_memory_region * region, edsm_message*msg) {
+    pthread_mutex_lock(&region->twin_lock);
+
+    pthread_mutex_unlock(&region->twin_lock);
+}
+
 // Twins a page and adds it to region's linked list
 // addr must be page aligned
 void twin_page(edsm_memory_region * region, void*addr) {
@@ -132,16 +170,18 @@ void twin_page(edsm_memory_region * region, void*addr) {
     pthread_mutex_unlock(&region->twin_lock);
 }
 
+
+
 edsm_memory_region * find_region_for_addr(void * addr) {
-    pthread_mutex_lock(&regions_lock);
+    pthread_rwlock_rdlock(&regions_lock);
     edsm_memory_region * s;
     LL_FOREACH(regions, s) {
         if(addr >= s->head && addr < (void *)((size_t)s->head+(size_t)s->size)) {
-            pthread_mutex_unlock(&regions_lock);
+            pthread_rwlock_unlock(&regions_lock);
             return s;
         }
     }
-    pthread_mutex_unlock(&regions_lock);
+    pthread_rwlock_unlock(&regions_lock);
     return NULL;
 }
 
