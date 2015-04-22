@@ -9,31 +9,57 @@
 #include "memory.h"
 #include <sys/mman.h>
 #include <signal.h>
+#include <utlist.h>
 
 static void page_trap_handler(int sig, siginfo_t *si, void *unused);
+void tx_begin(void * addr);
 void region_protect(edsm_memory_region * region);
+void twin_page(edsm_memory_region * region, void*addr);
+edsm_memory_region * find_region_for_addr(void * addr);
+struct page_twin * init_twin(edsm_memory_region * region, void * head_addr);
+void destroy_twin(struct page_twin * twin);
 
+size_t pagesize;
+
+pthread_mutex_t regions_lock;
+edsm_memory_region * regions = NULL;
 
 void edsm_memory_init() {
-    struct sigaction sa;
+    pagesize = (size_t) sysconf(_SC_PAGESIZE);
+    pthread_mutex_init(&regions_lock, NULL);
 
+    //set up the signal handler to trap memory accesses
+    struct sigaction sa;
     sa.sa_flags = SA_SIGINFO;
     sigemptyset(&sa.sa_mask);
     sa.sa_sigaction = page_trap_handler;
     if (sigaction(SIGSEGV, &sa, NULL) == -1) {
         ERROR_MSG("Signal handler setup");
     }
+
+    edsm_memory_region * region = edsm_memory_region_create(1);
+    ((int*)(region->head))[3] = 1;
+    DEBUG_MSG("Value %d", ((int*)(region->head))[3]);
+    region_protect(region);
+    ((int*)(region->head))[3] = 2;
+    DEBUG_MSG("Value %d", ((int*)(region->head))[3]);
+    region_protect(region);
+    ((int*)(region->head))[3] = 3;
+    DEBUG_MSG("Value %d", ((int*)(region->head))[3]);
 }
 
 static void page_trap_handler(int sig, siginfo_t *si, void *unused)
 {
     printf("Got SIGSEGV at address: 0x%lx\n", (long) si->si_addr);
+    sleep(1);
+    tx_begin(si->si_addr);
+    return;
     exit(EXIT_FAILURE);
 }
 
 edsm_memory_region *edsm_memory_region_create(size_t size) {
     edsm_memory_region * new_region = malloc(sizeof(edsm_memory_region));
-    size_t pagesize = (size_t) sysconf(_SC_PAGESIZE);
+    new_region->twins = NULL; //important for utlist
 
     //round size to the next multiple of pagesize
     size_t remainder = size % pagesize;
@@ -46,15 +72,93 @@ edsm_memory_region *edsm_memory_region_create(size_t size) {
         ERROR_MSG("memory allocation");
         return NULL;
     }
+    DEBUG_MSG("Got a memory region of size %d", new_region->size);
+
+    pthread_mutex_init(&new_region->twin_lock, NULL);
+
+    //Add this region to our LL of regions
+    pthread_mutex_lock(&regions_lock);
+    LL_PREPEND(regions, new_region);
+    pthread_mutex_unlock(&regions_lock);
+
     return new_region;
 }
 
 void edsm_memory_region_destroy(edsm_memory_region *region) {
+    pthread_mutex_lock(&regions_lock);
+    LL_DELETE(regions, region);
+    pthread_mutex_unlock(&regions_lock);
+
+    pthread_mutex_destroy(&region->twin_lock);
     free(region->head);
     free(region);
+}
+
+void tx_begin(void * addr) {
+    //we need to round addr down to the nearest page boundary
+    //round size to the next multiple of pagesize
+    size_t remainder = (size_t)addr % pagesize;
+    if(remainder != 0)
+        addr = (void *)((size_t)addr-remainder);
+
+    int rc = mprotect(addr, 1, PROT_READ | PROT_WRITE);
+    assert(rc == 0);
+
+    //mprotect is done, but we need to also twin the page
+    edsm_memory_region * s = find_region_for_addr(addr);
+    assert(s != NULL);
+
+    twin_page(s,addr);
+}
+
+// Twins a page and adds it to region's linked list
+// addr must be page aligned
+void twin_page(edsm_memory_region * region, void*addr) {
+    assert((size_t)addr % pagesize == 0);
+
+    struct page_twin * twin = init_twin(region,addr);
+
+    pthread_mutex_lock(&region->twin_lock);
+    struct page_twin * s = NULL;
+    LL_SEARCH_SCALAR(region->twins, s, original_page_head, addr);
+    if(s==NULL) {
+        DEBUG_MSG("Region not twinned, doing so now");
+        memcpy(twin->twin_data, addr, pagesize);
+        LL_PREPEND(region->twins, twin);
+    } else { // else region is already twinned
+        DEBUG_MSG("Region is already twinned, skipping it");
+        destroy_twin(twin);
+    }
+    pthread_mutex_unlock(&region->twin_lock);
+}
+
+edsm_memory_region * find_region_for_addr(void * addr) {
+    pthread_mutex_lock(&regions_lock);
+    edsm_memory_region * s;
+    LL_FOREACH(regions, s) {
+        if(addr >= s->head && addr < (void *)((size_t)s->head+(size_t)s->size)) {
+            pthread_mutex_unlock(&regions_lock);
+            return s;
+        }
+    }
+    pthread_mutex_unlock(&regions_lock);
+    return NULL;
 }
 
 void region_protect(edsm_memory_region * region) {
     int rc = mprotect(region->head, region->size, PROT_NONE);
     assert(rc == 0);
+}
+
+struct page_twin * init_twin(edsm_memory_region * region, void*head_addr) {
+    struct page_twin * twin = malloc(sizeof(struct page_twin));
+    twin->twin_data = malloc(pagesize);
+    twin->original_page_head = head_addr;
+    twin->parent_region = region;
+    return twin;
+}
+
+void destroy_twin(struct page_twin * twin) {
+    free(twin->twin_data);
+    free(twin);
 }
