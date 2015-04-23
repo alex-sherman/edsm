@@ -20,25 +20,29 @@ double length(double x1, double y1, double x2, double y2)
     return pow(pow(x1 - x2, 2) + pow(y1 - y2, 2), 0.5);
 }
 
-void update_body(body *bodies, body *tmp_bodies, int count, int index, double dt)
+void update_body(body *bodies, body *tmp_bodies, int count, int index, double dt, int micro_step_count)
 {
-    double f_x = 0;
-    double f_y = 0;
     body update = bodies[index];
-    for(int i = 0; i < count; i++)
+    for(int sc = 0; sc < micro_step_count; sc ++)
     {
-        if(i == index) i++;
-        double d = length(bodies[i].x, bodies[i].y, update.x, update.y);
-        //if(d == 0) continue;
-        double f = bodies[i].mass * update.mass / d;
-        f_x += f * (bodies[i].x - update.x) / d;
-        f_y += f * (bodies[i].y - update.y) / d;
+        double f_x = 0;
+        double f_y = 0;
+        for(int i = 0; i < count; i++)
+        {
+            if(i == index) i++;
+            double d = length(bodies[i].x, bodies[i].y, update.x, update.y);
+            //if(d == 0) continue;
+            double f = bodies[i].mass * update.mass / d;
+            f_x += f * (bodies[i].x - update.x) / d;
+            f_y += f * (bodies[i].y - update.y) / d;
+        }
+        update.vx = update.vx + f_x / update.mass * dt;
+        update.vy = update.vy + f_y / update.mass * dt;
+        update.x = update.vx * dt + update.x;
+        update.y = update.vy * dt + update.y;
     }
-    tmp_bodies[index].vx = update.vx + f_x / update.mass * dt;
-    tmp_bodies[index].vy = update.vy + f_y / update.mass * dt;
-    tmp_bodies[index].x = tmp_bodies[index].vx * dt + update.x;
-    tmp_bodies[index].y = tmp_bodies[index].vy * dt + update.y;
-    tmp_bodies[index].mass = update.mass;
+
+    tmp_bodies[index] = update;
 }
 
 const char *task_name = "task_nbody.so";
@@ -66,13 +70,16 @@ extern json_object *run_simulation(json_object *params)
     json_object *j_step_count = json_object_array_get_idx(params, 2);
     int32_t step_count = json_object_get_int(j_step_count);
 
+    json_object *j_micro_step_count = json_object_array_get_idx(params, 3);
+    int32_t micro_step_count = json_object_get_int(j_micro_step_count);
+
     DEBUG_MSG("Timestep %lf for %d steps", timestep, step_count);
 
     for(int t = 0; t < step_count; t++)
     {
         for(int i = 0; i < body_count; i++)
         {
-            update_body(bodies, tmp_bodies, body_count, i, timestep);
+            update_body(bodies, tmp_bodies, body_count, i, timestep / micro_step_count, micro_step_count);
         }
         body *swap = bodies;
         bodies = tmp_bodies;
