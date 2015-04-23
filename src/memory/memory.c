@@ -25,7 +25,6 @@ struct page_twin * init_twin(edsm_memory_region * region, void * head_addr);
 void destroy_twin(struct page_twin * twin);
 
 struct page_twin {
-    edsm_memory_region * parent_region;
     void* original_page_head;
     void* twin_data;
     struct page_twin * next;
@@ -63,8 +62,11 @@ void edsm_memory_init() {
 static void page_trap_handler(int sig, siginfo_t *si, void *unused)
 {
     printf("Got SIGSEGV at address: 0x%lx", (long) si->si_addr);
-    sleep(1);
-    tx_begin(si->si_addr);
+    edsm_memory_region *region = find_region_for_addr(si->si_addr);
+    if(region == NULL)
+        segfault_handler(sig);
+    else
+        tx_begin(si->si_addr);
     return;
 }
 
@@ -159,12 +161,12 @@ void diff_region(edsm_memory_region * region, edsm_message*msg) {
 
 // Twins a page and adds it to region's linked list
 // addr must be page aligned
-void twin_page(edsm_memory_region * region, void*addr) {
+void twin_page(edsm_memory_region *region, void *addr) {
     assert((size_t)addr % pagesize == 0);
 
-    struct page_twin * twin = init_twin(region,addr);
+    struct page_twin *twin = init_twin(region,addr);
 
-    struct page_twin * s = NULL;
+    struct page_twin *s = NULL;
     LL_SEARCH_SCALAR(region->twins, s, original_page_head, addr);
     if(s==NULL) {
         DEBUG_MSG("Region not twinned, doing so now");
@@ -182,9 +184,9 @@ void twin_page(edsm_memory_region * region, void*addr) {
 
 
 
-edsm_memory_region * find_region_for_addr(void * addr) {
+edsm_memory_region * find_region_for_addr(void *addr) {
     pthread_rwlock_rdlock(&regions_lock);
-    edsm_memory_region * s;
+    edsm_memory_region *s;
     LL_FOREACH(regions, s) {
         if(addr >= s->head && addr < (void *)((size_t)s->head+(size_t)s->size)) {
             pthread_rwlock_unlock(&regions_lock);
@@ -200,11 +202,10 @@ void region_protect(edsm_memory_region * region) {
     assert(rc == 0);
 }
 
-struct page_twin * init_twin(edsm_memory_region * region, void*head_addr) {
-    struct page_twin * twin = malloc(sizeof(struct page_twin));
+struct page_twin * init_twin(edsm_memory_region *region, void *head_addr) {
+    struct page_twin *twin = malloc(sizeof(struct page_twin));
     twin->twin_data = malloc(pagesize);
     twin->original_page_head = head_addr;
-    twin->parent_region = region;
     return twin;
 }
 
