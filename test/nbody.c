@@ -22,20 +22,22 @@ double length(double x1, double y1, double x2, double y2)
 
 void update_body(body *bodies, body *tmp_bodies, int count, int index, double dt, int micro_step_count)
 {
+    assert(bodies && tmp_bodies);
     body update = bodies[index];
     for(int sc = 0; sc < micro_step_count; sc ++)
     {
         double f_x = 0;
         double f_y = 0;
-        for(int i = 0; i < count; i++)
+        for(int i = 0; i < count; i ++)
         {
-            if(i == index) i++;
+            if(i == index) continue;
             double d = length(bodies[i].x, bodies[i].y, update.x, update.y);
-            //if(d == 0) continue;
+            if(d == 0) continue;
             double f = bodies[i].mass * update.mass / d;
             f_x += f * (bodies[i].x - update.x) / d;
             f_y += f * (bodies[i].y - update.y) / d;
         }
+        assert(update.mass > 0);
         update.vx = update.vx + f_x / update.mass * dt;
         update.vy = update.vy + f_y / update.mass * dt;
         update.x = update.vx * dt + update.x;
@@ -74,7 +76,6 @@ extern json_object *run_simulation(json_object *params)
     int32_t micro_step_count = json_object_get_int(j_micro_step_count);
 
     DEBUG_MSG("Timestep %lf for %d steps", timestep, step_count);
-
     for(int t = 0; t < step_count; t++)
     {
         for(int i = 0; i < body_count; i++)
