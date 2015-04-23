@@ -50,7 +50,7 @@ void edsm_memory_init() {
         ERROR_MSG("Signal handler setup");
     }
 
-//    edsm_memory_region * region = edsm_memory_region_create(1);
+//    edsm_memory_region * region = edsm_memory_region_create(1, -1);
 //    ((int*)(region->head))[3] = 1;
 //    DEBUG_MSG("Value %d", ((int*)(region->head))[3]);
 //    region_protect(region);
@@ -74,6 +74,10 @@ static void page_trap_handler(int sig, siginfo_t *si, void *unused)
 
 edsm_memory_region *edsm_memory_region_create(size_t size, uint32_t id) {
     edsm_memory_region * new_region = edsm_dobj_get(id, sizeof(edsm_memory_region), edsm_memory_handle_message); //this does malloc for us
+
+    //The region has already been allocated by a previous local call
+    //this function
+    if(new_region->size != 0) return new_region;
     new_region->twins = NULL; //important for utlist
 
     //round size to the next multiple of pagesize
@@ -96,6 +100,7 @@ edsm_memory_region *edsm_memory_region_create(size_t size, uint32_t id) {
     LL_PREPEND(regions, new_region);
     pthread_rwlock_unlock(&regions_lock);
 
+    region_protect(new_region);
     return new_region;
 }
 
