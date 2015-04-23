@@ -1,6 +1,8 @@
 #ifndef EDSM_MUTEX_H
 #define EDSM_MUTEX_H
 
+#include <edsm.h>
+
 typedef struct request_entry_s request_entry;
 
 struct request_entry_s

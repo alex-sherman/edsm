@@ -14,6 +14,8 @@
 
 static void page_trap_handler(int sig, siginfo_t *si, void *unused);
 
+int edsm_memory_handle_message(edsm_dobj *dobj, uint32_t peer_id, edsm_message *msg);
+
 void tx_begin(void * addr);
 edsm_message * tx_end(edsm_memory_region * region);
 
@@ -70,8 +72,8 @@ static void page_trap_handler(int sig, siginfo_t *si, void *unused)
     return;
 }
 
-edsm_memory_region *edsm_memory_region_create(size_t size) {
-    edsm_memory_region * new_region = malloc(sizeof(edsm_memory_region));
+edsm_memory_region *edsm_memory_region_create(size_t size, uint32_t id) {
+    edsm_memory_region * new_region = edsm_dobj_get(id, sizeof(edsm_memory_region), edsm_memory_handle_message); //this does malloc for us
     new_region->twins = NULL; //important for utlist
 
     //round size to the next multiple of pagesize
@@ -105,6 +107,12 @@ void edsm_memory_region_destroy(edsm_memory_region *region) {
     pthread_mutex_destroy(&region->twin_lock);
     free(region->head);
     free(region);
+}
+
+// msg is freed elsewhere, we don't need to in this message
+int edsm_memory_handle_message(edsm_dobj *dobj, uint32_t peer_id, edsm_message *msg) {
+    edsm_memory_region * region = (edsm_memory_region *) dobj;
+    return SUCCESS;
 }
 
 void tx_begin(void * addr) {
