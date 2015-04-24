@@ -1,6 +1,7 @@
 add_library(edsm SHARED
     edsm.h
     debug.c
+    dobj/barrier.c
     dobj/dobj.c
     dobj/mutex.c
     dobj/reply_waiter.c

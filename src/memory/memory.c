@@ -78,6 +78,7 @@ edsm_memory_region *edsm_memory_region_create(size_t size, uint32_t id) {
     //The region has already been allocated by a previous local call
     //this function
     if(new_region->size != 0) return new_region;
+    DEBUG_MSG("Initiating new region %d", id);
     new_region->twins = NULL; //important for utlist
 
     //round size to the next multiple of pagesize
