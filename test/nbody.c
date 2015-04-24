@@ -104,7 +104,7 @@ extern json_object *init_simulation(json_object *params)
     current_sim.client_barrier_id = edsm_dobj_create();
     current_sim.completion_barrier_id = edsm_dobj_create();
 
-    edsm_memory_region *bodies_region = edsm_memory_region_create(sizeof(body) * current_sim.body_count, current_sim.bodies_id);
+    edsm_memory_region *bodies_region = edsm_memory_region_get(sizeof(body) * current_sim.body_count, current_sim.bodies_id);
 
     body *bodies = bodies_region->head;
 
@@ -128,7 +128,7 @@ extern json_object *init_simulation(json_object *params)
 extern json_object *run_simulation(json_object *params)
 {
 
-    edsm_memory_region *bodies_region = edsm_memory_region_create(sizeof(body) * current_sim.body_count, current_sim.bodies_id);
+    edsm_memory_region *bodies_region = edsm_memory_region_get(sizeof(body) * current_sim.body_count, current_sim.bodies_id);
     edsm_barrier *client_barrier = edsm_barrier_get(current_sim.client_barrier_id);
     edsm_barrier *completion_barrier = edsm_barrier_get(current_sim.completion_barrier_id);
 
@@ -190,7 +190,7 @@ extern int up_call(struct edsm_task_information *task, uint32_t peer_id, uint32_
         uint32_t count;
         edsm_message_read(params, &count, sizeof(count));
 
-        edsm_memory_region *bodies_region = edsm_memory_region_create(sizeof(body) * current_sim.body_count, current_sim.bodies_id);
+        edsm_memory_region *bodies_region = edsm_memory_region_get(sizeof(body) * current_sim.body_count, current_sim.bodies_id);
         edsm_barrier *client_barrier = edsm_barrier_get(current_sim.client_barrier_id);
         edsm_barrier *completion_barrier = edsm_barrier_get(current_sim.completion_barrier_id);
         body *tmp_bodies = malloc(sizeof(body) * count);
