@@ -25,7 +25,7 @@ void edsm_memory_init();
 
 // Return the pointer to a memory region struct which contains a pointer to the head of the allocated region
 // Size will be rounded up to a page boundary
-edsm_memory_region *edsm_memory_region_create(size_t size, uint32_t id);
+edsm_memory_region *edsm_memory_region_get(size_t size, uint32_t id);
 
 // Destroy the region pointed to by region
 void edsm_memory_region_destroy(edsm_memory_region * region);

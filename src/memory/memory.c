@@ -10,7 +10,6 @@
 #include <sys/mman.h>
 #include <signal.h>
 #include <utlist.h>
-#include <message.h>
 
 static void page_trap_handler(int sig, siginfo_t *si, void *unused);
 
@@ -23,7 +22,7 @@ void region_protect(edsm_memory_region * region);
 void diff_region(edsm_memory_region * region, edsm_message*msg);
 void twin_page(edsm_memory_region * region, void*addr);
 edsm_memory_region * find_region_for_addr(void * addr);
-struct page_twin * init_twin(edsm_memory_region * region, void * head_addr);
+struct page_twin *init_twin(void *head_addr);
 void destroy_twin(struct page_twin * twin);
 
 struct page_twin {
@@ -50,7 +49,7 @@ void edsm_memory_init() {
         ERROR_MSG("Signal handler setup");
     }
 
-//    edsm_memory_region * region = edsm_memory_region_create(1, -1);
+//    edsm_memory_region * region = edsm_memory_region_get(1, -1);
 //    ((int*)(region->head))[3] = 1;
 //    DEBUG_MSG("Value %d", ((int*)(region->head))[3]);
 //    region_protect(region);
@@ -72,12 +71,16 @@ static void page_trap_handler(int sig, siginfo_t *si, void *unused)
     return;
 }
 
-edsm_memory_region *edsm_memory_region_create(size_t size, uint32_t id) {
+edsm_memory_region *edsm_memory_region_get(size_t size, uint32_t id) {
+    pthread_rwlock_wrlock(&regions_lock);
     edsm_memory_region * new_region = edsm_dobj_get(id, sizeof(edsm_memory_region), edsm_memory_handle_message); //this does malloc for us
 
     //The region has already been allocated by a previous local call
     //this function
-    if(new_region->size != 0) return new_region;
+    if(new_region->size != 0) {
+        pthread_rwlock_unlock(&regions_lock);
+        return new_region;
+    }
     DEBUG_MSG("Initiating new region %d", id);
     new_region->twins = NULL; //important for utlist
 
@@ -90,6 +93,7 @@ edsm_memory_region *edsm_memory_region_create(size_t size, uint32_t id) {
     int rc = posix_memalign(&new_region->head, pagesize, new_region->size);
     if(rc != 0) {
         ERROR_MSG("memory allocation");
+        pthread_rwlock_unlock(&regions_lock);
         return NULL;
     }
     DEBUG_MSG("Got a memory region of size %d", new_region->size);
@@ -97,11 +101,10 @@ edsm_memory_region *edsm_memory_region_create(size_t size, uint32_t id) {
     pthread_mutex_init(&new_region->twin_lock, NULL);
 
     //Add this region to our LL of regions
-    pthread_rwlock_wrlock(&regions_lock);
     LL_PREPEND(regions, new_region);
-    pthread_rwlock_unlock(&regions_lock);
 
     region_protect(new_region);
+    pthread_rwlock_unlock(&regions_lock);
     return new_region;
 }
 
@@ -116,8 +119,29 @@ void edsm_memory_region_destroy(edsm_memory_region *region) {
 }
 
 // msg is freed elsewhere, we don't need to in this message
+// Message structure:
+// (uint32_t)  NUMBER OF CONTIGUOUS DIFF SECTIONS
+// Begin repeating diff sections:
+// (ptrdiff_t) SECTION OFFSET FROM REGION HEAD
+// (uint32_t)  NUMBER OF CONTIGUOUS BYTES IN SECTION
+// (char[n])   Changed data
+// End repeating diff setion
 int edsm_memory_handle_message(edsm_dobj *dobj, uint32_t peer_id, edsm_message *msg) {
     edsm_memory_region * region = (edsm_memory_region *) dobj;
+    //TODO, does any mutex need to be locked here?
+
+    uint32_t num_diff_sections;
+    edsm_message_read(msg, &num_diff_sections, sizeof(num_diff_sections));
+
+    for (int i = 0; i < num_diff_sections; ++i) {
+        ptrdiff_t offset;
+        uint32_t contiguous_bytes;
+        edsm_message_read(msg, &offset, sizeof(offset));
+        edsm_message_read(msg, &contiguous_bytes, sizeof(contiguous_bytes));
+        char * change_destination = (char *)region->head + offset;
+        edsm_message_read(msg, change_destination, contiguous_bytes);
+    }
+
     return SUCCESS;
 }
 
@@ -126,7 +150,7 @@ void tx_begin(void * addr) {
     //round size to the next multiple of pagesize
     size_t remainder = (size_t)addr % pagesize;
     if(remainder != 0)
-        addr = (void *)((size_t)addr-remainder);
+        addr = (void *)((char *)addr-remainder);
 
     edsm_memory_region * s = find_region_for_addr(addr);
     assert(s != NULL);
@@ -142,34 +166,64 @@ void tx_begin(void * addr) {
 
 edsm_message * tx_end(edsm_memory_region * region) {
     pthread_rwlock_rdlock(&regions_lock);
-    edsm_message * diff = edsm_message_create(sizeof(uint32_t),0); //leaving space at the beginning for how many regions have diffs
-    uint32_t num_diffs = 0;
     if(region == NULL) {
         edsm_memory_region *s;
         LL_FOREACH(regions, s) {
+            edsm_message * diff = edsm_message_create(0,0);
             diff_region(s, diff);
-            num_diffs++;
+            edsm_dobj_send(&s->base,diff);
         }
     } else {
+        edsm_message * diff = edsm_message_create(0,0);
         diff_region(region, diff);
-        num_diffs++;
+        edsm_dobj_send(&region->base,diff);
     }
-    edsm_message_push(diff, sizeof(num_diffs));
-    *(uint32_t *)diff->data = num_diffs;
     pthread_rwlock_unlock(&regions_lock);
     return NULL;
 }
 
 // diffs a region and adds it to msg
+// Message structure:
+// (uint32_t)  NUMBER OF CONTIGUOUS DIFF SECTIONS
+// Begin repeating diff sections:
+// (ptrdiff_t) SECTION OFFSET FROM REGION HEAD
+// (uint32_t)  NUMBER OF CONTIGUOUS BYTES IN SECTION
+// (char[n])   Changed data
+// End repeating diff setion
 void diff_region(edsm_memory_region * region, edsm_message*msg) {
-    //edsm_message_write(msg, , ) //TODO write the dobj id of the region to the message here or something
-    uint32_t * num_diffs = (uint32_t *)msg->data;
-    edsm_message_put(msg, sizeof(uint32_t)); //leave some space in the message for the count
     pthread_mutex_lock(&region->twin_lock);
-    struct page_twin * s;
-    LL_FOREACH(region->twins, s) {
 
+    uint32_t * num_diff_sections = (uint32_t *)msg->data; //leave space in the message for the number of diff bits in the region
+    edsm_message_put(msg,sizeof(uint32_t));
+    *num_diff_sections = 0;
+
+    uint32_t *contiguous_bytes = NULL;
+    struct page_twin *twin, *s;
+    LL_FOREACH_SAFE(region->twins, twin, s) {
+        char * origchar = twin->original_page_head;
+        char * twinchar = twin->twin_data;
+
+        for (int i = 0; i < pagesize/sizeof(char); ++i) {
+            if(origchar[i] != twinchar[i]) {
+                if(contiguous_bytes != NULL) {
+                    *contiguous_bytes = *contiguous_bytes + 1; //increment the number of contiguous bytes in this section
+                } else {
+                    ptrdiff_t offset = (char *)twin->original_page_head-(char *)region->head + i * sizeof(char);
+                    edsm_message_write(msg, &offset, sizeof(offset)); //Write the offset from the region head for this section of bytes
+                    contiguous_bytes = (uint32_t *)msg->data; // counter for how many contiguous bytes are about to be presented
+                    edsm_message_put(msg,sizeof(uint32_t));
+                    *contiguous_bytes = 1;
+                    *num_diff_sections = *num_diff_sections + 1;
+                }
+                edsm_message_write(msg, &twinchar[i], sizeof(char)); //write the changed byte after handling the counter of bytes / section header
+            } else {
+                contiguous_bytes = NULL;
+            }
+        }
+        LL_DELETE(region->twins, twin);
+        destroy_twin(twin);
     }
+
     pthread_mutex_unlock(&region->twin_lock);
 }
 
@@ -178,7 +232,7 @@ void diff_region(edsm_memory_region * region, edsm_message*msg) {
 void twin_page(edsm_memory_region *region, void *addr) {
     assert((size_t)addr % pagesize == 0);
 
-    struct page_twin *twin = init_twin(region,addr);
+    struct page_twin *twin = init_twin(addr);
 
     struct page_twin *s = NULL;
     LL_SEARCH_SCALAR(region->twins, s, original_page_head, addr);
@@ -216,7 +270,7 @@ void region_protect(edsm_memory_region * region) {
     assert(rc == 0);
 }
 
-struct page_twin * init_twin(edsm_memory_region *region, void *head_addr) {
+struct page_twin *init_twin(void *head_addr) {
     struct page_twin *twin = malloc(sizeof(struct page_twin));
     twin->twin_data = malloc(pagesize);
     twin->original_page_head = head_addr;

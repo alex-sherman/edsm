@@ -80,7 +80,7 @@ extern json_object *init_simulation(json_object *params)
 
     uint32_t bodies_id = edsm_dobj_create();
 
-    edsm_memory_region *bodies_region = edsm_memory_region_create(sizeof(body) * body_count, bodies_id);
+    edsm_memory_region *bodies_region = edsm_memory_region_get(sizeof(body) * body_count, bodies_id);
 
     body *bodies = bodies_region->head;
 
@@ -118,7 +118,7 @@ extern json_object *run_simulation(json_object *params)
     tmp = json_object_array_get_idx(params, 4);
     int32_t micro_step_count = json_object_get_int(tmp);
 
-    edsm_memory_region *bodies_region = edsm_memory_region_create(sizeof(body) * body_count, bodies_id);
+    edsm_memory_region *bodies_region = edsm_memory_region_get(sizeof(body) * body_count, bodies_id);
     body *tmp_bodies = malloc(sizeof(body) * body_count);
     memset(tmp_bodies, 0, sizeof(body) * body_count);
 
