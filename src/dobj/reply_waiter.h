@@ -5,7 +5,7 @@
 #include "pthread.h"
 #include "protocol.h"
 
-typedef struct edsm_reply_waiter
+typedef struct edsm_reply_waiter_s
 {
     struct edsm_proto_peer_id *wait_on;
     pthread_mutex_t lock;

@@ -29,11 +29,14 @@ int edsm_reply_waiter_add_reply(edsm_reply_waiter *waiter, uint32_t peer_id)
         if(peer->id == peer_id){
             LL_DELETE(waiter->wait_on, peer);
             free(peer);
+            break;
         }
     }
+    int count;
+    LL_COUNT(waiter->wait_on, tmp, count);
     pthread_mutex_unlock(&waiter->lock);
 
-    pthread_cond_signal(&waiter->condition);
+    pthread_cond_broadcast(&waiter->condition);
     return SUCCESS;
 }
 

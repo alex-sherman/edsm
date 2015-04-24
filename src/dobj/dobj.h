@@ -1,7 +1,6 @@
 #ifndef EDSM_DOBJ_H
 #define EDSM_DOBJ_H
 
-#include <edsm.h>
 #include "reply_waiter.h"
 
 typedef struct edsm_dobj_s edsm_dobj;

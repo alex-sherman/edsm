@@ -157,11 +157,11 @@ void *edsm_dobj_get(uint32_t id, size_t size, edsm_dobj_message_handler_f handle
 
 int edsm_dobj_send(edsm_dobj *dobj, edsm_message *dobj_msg)
 {
-    assert(dobj_msg);
     if(dobj->peers != NULL)
     {
         int rtn = SUCCESS;
-        edsm_message *msg = edsm_message_create(0, 8 + dobj_msg->data_size);
+        int size = 8 + (dobj_msg == NULL ? 0 : dobj_msg->data_size);
+        edsm_message *msg = edsm_message_create(0, size);
         edsm_message_write(msg, &DOBJ_MSG_TYPE_OBJ_MSG, sizeof(DOBJ_MSG_TYPE_OBJ_MSG));
         edsm_message_write(msg, &dobj->id, sizeof(dobj->id));
         edsm_message_write_message(msg, dobj_msg);
