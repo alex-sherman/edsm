@@ -172,11 +172,13 @@ edsm_message * tx_end(edsm_memory_region * region) {
             edsm_message * diff = edsm_message_create(0,0);
             diff_region(s, diff);
             edsm_dobj_send(&s->base,diff);
+            edsm_message_destroy(diff);
         }
     } else {
         edsm_message * diff = edsm_message_create(0,0);
         diff_region(region, diff);
         edsm_dobj_send(&region->base,diff);
+        edsm_message_destroy(diff);
     }
     pthread_rwlock_unlock(&regions_lock);
     return NULL;
