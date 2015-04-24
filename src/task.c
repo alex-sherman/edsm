@@ -108,7 +108,7 @@ struct edsm_task_information *edsm_task_link(const char *name, char *path)
 
     HASH_ADD_STR(tasks, name, task);
 
-    _edsm_task_do_up_call(name, 0, 0, NULL);
+    _edsm_task_do_up_call(name, edsm_proto_local_id(), 0, NULL);
 
     return task;
 }

@@ -16,7 +16,7 @@ static void page_trap_handler(int sig, siginfo_t *si, void *unused);
 int edsm_memory_handle_message(edsm_dobj *dobj, uint32_t peer_id, edsm_message *msg);
 
 void tx_begin(void * addr);
-edsm_message * tx_end(edsm_memory_region * region);
+
 
 void region_protect(edsm_memory_region * region);
 void diff_region(edsm_memory_region * region, edsm_message*msg);
@@ -132,7 +132,7 @@ int edsm_memory_handle_message(edsm_dobj *dobj, uint32_t peer_id, edsm_message *
 
     uint32_t num_diff_sections;
     edsm_message_read(msg, &num_diff_sections, sizeof(num_diff_sections));
-
+    DEBUG_MSG("Recieved new diff with %d sections", num_diff_sections);
     for (int i = 0; i < num_diff_sections; ++i) {
         ptrdiff_t offset;
         uint32_t contiguous_bytes;
@@ -164,12 +164,12 @@ void tx_begin(void * addr) {
     pthread_mutex_unlock(&s->twin_lock);
 }
 
-edsm_message * tx_end(edsm_memory_region * region) {
+edsm_message *edsm_memory_tx_end(edsm_memory_region *region) {
     pthread_rwlock_rdlock(&regions_lock);
     if(region == NULL) {
         edsm_memory_region *s;
         LL_FOREACH(regions, s) {
-            edsm_message * diff = edsm_message_create(0,0);
+            edsm_message * diff = edsm_message_create(0,4096);
             diff_region(s, diff);
             edsm_dobj_send(&s->base,diff);
             edsm_message_destroy(diff);
@@ -195,8 +195,7 @@ edsm_message * tx_end(edsm_memory_region * region) {
 void diff_region(edsm_memory_region * region, edsm_message*msg) {
     pthread_mutex_lock(&region->twin_lock);
 
-    uint32_t * num_diff_sections = (uint32_t *)msg->data; //leave space in the message for the number of diff bits in the region
-    edsm_message_put(msg,sizeof(uint32_t));
+    uint32_t * num_diff_sections = edsm_message_get_writeable_pointer(msg, sizeof(uint32_t)); //leave space in the message for the number of diff bits in the region
     *num_diff_sections = 0;
 
     uint32_t *contiguous_bytes = NULL;
@@ -208,15 +207,17 @@ void diff_region(edsm_memory_region * region, edsm_message*msg) {
         for (int i = 0; i < pagesize/sizeof(char); ++i) {
             if(origchar[i] != twinchar[i]) {
                 if(contiguous_bytes != NULL) {
+                    DEBUG_MSG("Continuing contiguous section");
                     *contiguous_bytes = *contiguous_bytes + 1; //increment the number of contiguous bytes in this section
                 } else {
+                    DEBUG_MSG("Starting contiguous section");
                     ptrdiff_t offset = (char *)twin->original_page_head-(char *)region->head + i * sizeof(char);
                     edsm_message_write(msg, &offset, sizeof(offset)); //Write the offset from the region head for this section of bytes
-                    contiguous_bytes = (uint32_t *)msg->data; // counter for how many contiguous bytes are about to be presented
-                    edsm_message_put(msg,sizeof(uint32_t));
+                    contiguous_bytes = edsm_message_get_writeable_pointer(msg, sizeof(uint32_t)); // counter for how many contiguous bytes are about to be presented
                     *contiguous_bytes = 1;
                     *num_diff_sections = *num_diff_sections + 1;
                 }
+                DEBUG_MSG("contiguous bytes %d %d", *contiguous_bytes, *num_diff_sections);
                 edsm_message_write(msg, &twinchar[i], sizeof(char)); //write the changed byte after handling the counter of bytes / section header
             } else {
                 contiguous_bytes = NULL;
@@ -225,7 +226,7 @@ void diff_region(edsm_memory_region * region, edsm_message*msg) {
         LL_DELETE(region->twins, twin);
         destroy_twin(twin);
     }
-
+    DEBUG_MSG("Diff created with %d sections", *num_diff_sections);
     pthread_mutex_unlock(&region->twin_lock);
 }
 

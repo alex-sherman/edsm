@@ -21,7 +21,7 @@ struct edsm_memory_region_s {
 
 void edsm_memory_init();
 
-
+edsm_message *edsm_memory_tx_end(edsm_memory_region *region);
 
 // Return the pointer to a memory region struct which contains a pointer to the head of the allocated region
 // Size will be rounded up to a page boundary
