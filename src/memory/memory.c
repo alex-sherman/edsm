@@ -195,38 +195,37 @@ edsm_message *edsm_memory_tx_end(edsm_memory_region *region) {
 void diff_region(edsm_memory_region * region, edsm_message*msg) {
     pthread_mutex_lock(&region->twin_lock);
 
-    uint32_t * num_diff_sections = edsm_message_get_writeable_pointer(msg, sizeof(uint32_t)); //leave space in the message for the number of diff bits in the region
-    *num_diff_sections = 0;
-
-    uint32_t *contiguous_bytes = NULL;
+    //TODO offset
+    uint32_t num_diff_sections = 0;
+    
     struct page_twin *twin, *s;
     LL_FOREACH_SAFE(region->twins, twin, s) {
         char * origchar = twin->original_page_head;
         char * twinchar = twin->twin_data;
-
+        uint32_t contiguous_bytes = 0;
         for (int i = 0; i < pagesize/sizeof(char); ++i) {
             if(origchar[i] != twinchar[i]) {
-                if(contiguous_bytes != NULL) {
+                if(contiguous_bytes != 0) {
                     DEBUG_MSG("Continuing contiguous section");
-                    *contiguous_bytes = *contiguous_bytes + 1; //increment the number of contiguous bytes in this section
+                    contiguous_bytes++; //increment the number of contiguous bytes in this section
                 } else {
                     DEBUG_MSG("Starting contiguous section");
                     ptrdiff_t offset = (char *)twin->original_page_head-(char *)region->head + i * sizeof(char);
                     edsm_message_write(msg, &offset, sizeof(offset)); //Write the offset from the region head for this section of bytes
-                    contiguous_bytes = edsm_message_get_writeable_pointer(msg, sizeof(uint32_t)); // counter for how many contiguous bytes are about to be presented
-                    *contiguous_bytes = 1;
-                    *num_diff_sections = *num_diff_sections + 1;
+                    //todo offset
+                    contiguous_bytes = 1; // counter for how many contiguous bytes are about to be presented
+                    num_diff_sections++;
                 }
-                DEBUG_MSG("contiguous bytes %d %d", *contiguous_bytes, *num_diff_sections);
+                DEBUG_MSG("contiguous bytes %d %d", contiguous_bytes, num_diff_sections);
                 edsm_message_write(msg, &twinchar[i], sizeof(char)); //write the changed byte after handling the counter of bytes / section header
             } else {
-                contiguous_bytes = NULL;
+                contiguous_bytes = 0;
             }
         }
         LL_DELETE(region->twins, twin);
         destroy_twin(twin);
     }
-    DEBUG_MSG("Diff created with %d sections", *num_diff_sections);
+    DEBUG_MSG("Diff created with %d sections", num_diff_sections);
     pthread_mutex_unlock(&region->twin_lock);
 }
 
