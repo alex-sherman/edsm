@@ -15,16 +15,32 @@ screen_size = 700
 screen = pygame.display.set_mode((screen_size, screen_size))
 #points = [[0,0,1], [0,1,1], [1,0,1], [1,1,1]]
 points = []
-point_count = 20
+point_count = 30
+cs = math.cos(math.pi/3)
+sn = math.sin(math.pi/3)
 for x in range(point_count):
     for y in range(point_count):
+        dx = point_count / 2 - x
+        dy = point_count / 2 - y
+        d_len = math.pow(math.pow(dx,2) + math.pow(dy,2),.5)
+        if d_len == 0:
+            m = 1000000
+            vx = 0
+            vy = 0
+        else:
+            dx /= d_len
+            dy /= d_len
+            m = 1000 * random.random()
+            vx = (dx * cs - dy * sn) / 100 + (random.random() - .5) / 700
+            vy = (dx * sn + dy * cs) / 100 + (random.random() - .5) / 700
+
         points.append([1.0 * screen_size * x / point_count, 1.0 * screen_size * y / point_count,
-            (random.random() - .5) / 100, (random.random() - .5) / 100,
-            1000 * random.random()])
+            vx, vy,
+            m])
 body_count = len(points)
 
 
-bid, = server.init_simulation(points)
+bid, = server.init_simulation(points, 1000, 2, 1)
 print bid
 
 while True:
@@ -35,7 +51,7 @@ while True:
         pygame.draw.circle(screen, (128,128,128), (int(point[0]), int(point[1])), int(math.pow(point[-1]/200, .5)), 0)
 
     pygame.display.update()
-    points = server.run_simulation(body_count, bid, 1000, 1, 1)
+    points = server.run_simulation(body_count, bid)
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             pygame.quit()
