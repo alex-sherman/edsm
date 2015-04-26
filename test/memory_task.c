@@ -31,6 +31,11 @@ extern int up_call(struct edsm_task_information *task, uint32_t peer_id, uint32_
                 edsm_task_send_up_call(task_name, peer->id, 1, msg);
             }
             edsm_message_destroy(msg);
+
+//            while(1==1) {
+//                DEBUG_MSG("Value is: %d", ((uint32_t *) shared_region->head)[0]);
+//                sleep(1);
+//            }
         }
     }
     else if(event == 1)
@@ -43,6 +48,9 @@ extern int up_call(struct edsm_task_information *task, uint32_t peer_id, uint32_
         shared_region = edsm_memory_region_get(memory_region_size, memory_region_id);
         
         ((uint32_t *)shared_region->head)[0] = 2563;
+        edsm_memory_tx_end(NULL);
+
+        ((uint32_t *)shared_region->head)[0] = 2213;
         edsm_memory_tx_end(NULL);
     }
     return SUCCESS;

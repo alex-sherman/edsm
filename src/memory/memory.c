@@ -202,6 +202,10 @@ void diff_region(edsm_memory_region * region, edsm_message*msg) {
 
     struct page_twin *twin, *s;
     LL_FOREACH_SAFE(region->twins, twin, s) {
+        //need to protect page from being written
+        int rc = mprotect(twin->original_page_head, 1, PROT_READ);
+        assert(rc == 0);
+
         char * origchar = twin->original_page_head;
         char * twinchar = twin->twin_data;
         size_t continuous_bytes_offset;
@@ -277,7 +281,7 @@ edsm_memory_region * find_region_for_addr(void *addr) {
 }
 
 void region_protect(edsm_memory_region * region) {
-    int rc = mprotect(region->head, region->size, PROT_NONE);
+    int rc = mprotect(region->head, region->size, PROT_READ);
     assert(rc == 0);
 }
 
