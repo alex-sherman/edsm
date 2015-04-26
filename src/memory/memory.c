@@ -196,12 +196,15 @@ void diff_region(edsm_memory_region * region, edsm_message*msg) {
     pthread_mutex_lock(&region->twin_lock);
 
     //TODO offset
+    size_t num_sections_offset = msg->data_size;
     uint32_t num_diff_sections = 0;
-    
+    edsm_message_write(msg, &num_diff_sections, sizeof(num_diff_sections)); //writing zero for now, will change later
+
     struct page_twin *twin, *s;
     LL_FOREACH_SAFE(region->twins, twin, s) {
         char * origchar = twin->original_page_head;
         char * twinchar = twin->twin_data;
+        size_t continuous_bytes_offset;
         uint32_t contiguous_bytes = 0;
         for (int i = 0; i < pagesize/sizeof(char); ++i) {
             if(origchar[i] != twinchar[i]) {
@@ -212,10 +215,13 @@ void diff_region(edsm_memory_region * region, edsm_message*msg) {
                     DEBUG_MSG("Starting contiguous section");
                     ptrdiff_t offset = (char *)twin->original_page_head-(char *)region->head + i * sizeof(char);
                     edsm_message_write(msg, &offset, sizeof(offset)); //Write the offset from the region head for this section of bytes
-                    //todo offset
+                    continuous_bytes_offset = msg->data_size;
                     contiguous_bytes = 1; // counter for how many contiguous bytes are about to be presented
+                    edsm_message_write(msg, &contiguous_bytes, sizeof(contiguous_bytes));
+
                     num_diff_sections++;
                 }
+                *(uint32_t *)(msg->data+continuous_bytes_offset) = contiguous_bytes;
                 DEBUG_MSG("contiguous bytes %d %d", contiguous_bytes, num_diff_sections);
                 edsm_message_write(msg, &twinchar[i], sizeof(char)); //write the changed byte after handling the counter of bytes / section header
             } else {
@@ -225,6 +231,9 @@ void diff_region(edsm_memory_region * region, edsm_message*msg) {
         LL_DELETE(region->twins, twin);
         destroy_twin(twin);
     }
+
+    *(uint32_t *)(msg->data+num_sections_offset) = num_diff_sections;
+
     DEBUG_MSG("Diff created with %d sections", num_diff_sections);
     pthread_mutex_unlock(&region->twin_lock);
 }
