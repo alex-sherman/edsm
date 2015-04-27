@@ -33,7 +33,7 @@ extern int up_call(struct edsm_task_information *task, uint32_t peer_id, uint32_
             edsm_message_destroy(msg);
 
 //            while(1==1) {
-//                DEBUG_MSG("Value is: %d", ((uint32_t *) shared_region->head)[0]);
+//                DEBUG_MSG("Value is: %d", ((uint32_t *) shared_region->head)[12]);
 //                sleep(1);
 //            }
         }
@@ -50,8 +50,15 @@ extern int up_call(struct edsm_task_information *task, uint32_t peer_id, uint32_
         ((uint32_t *)shared_region->head)[0] = 2563;
         edsm_memory_tx_end(NULL);
 
-        ((uint32_t *)shared_region->head)[0] = 2213;
+        ((uint32_t *)shared_region->head)[12] = 2213;
         edsm_memory_tx_end(NULL);
+
+//        while(1==1) {
+//            sleep(5);
+//            ((uint32_t *)shared_region->head)[12] = ((uint32_t *)shared_region->head)[12] + 1;
+//            edsm_memory_tx_end(NULL);
+//            DEBUG_MSG("Changed value to: %d", ((uint32_t *) shared_region->head)[0]);
+//        }
     }
     return SUCCESS;
 }

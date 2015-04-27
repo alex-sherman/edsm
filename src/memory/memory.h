@@ -15,7 +15,7 @@ struct edsm_memory_region_s {
     void * head;
     size_t size;
     struct page_twin * twins;
-    pthread_mutex_t twin_lock;
+    pthread_rwlock_t twin_lock;
     edsm_memory_region * next;
 };
 
@@ -28,6 +28,6 @@ edsm_message *edsm_memory_tx_end(edsm_memory_region *region);
 edsm_memory_region *edsm_memory_region_get(size_t size, uint32_t id);
 
 // Destroy the region pointed to by region
-void edsm_memory_region_destroy(edsm_memory_region * region);
+//void edsm_memory_region_destroy(edsm_memory_region * region);
 
 #endif //PROJECT_MEMORY_H
