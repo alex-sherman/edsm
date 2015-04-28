@@ -57,7 +57,7 @@ extern int up_call(struct edsm_task_information *task, uint32_t peer_id, uint32_
 //            sleep(5);
 //            ((uint32_t *)shared_region->head)[12] = ((uint32_t *)shared_region->head)[12] + 1;
 //            edsm_memory_tx_end(NULL);
-//            DEBUG_MSG("Changed value to: %d", ((uint32_t *) shared_region->head)[0]);
+//            DEBUG_MSG("Changed value to: %d", ((uint32_t *) shared_region->head)[12]);
 //        }
     }
     return SUCCESS;

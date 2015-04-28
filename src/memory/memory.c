@@ -23,6 +23,9 @@ edsm_memory_region * find_region_for_addr(void * addr);
 struct page_twin *init_twin(void *head_addr);
 void destroy_twin(struct page_twin * twin);
 
+int incrementLamportTimestamp(); //get the next value of the timestamp and increment it by one
+void setLamportTimestamp(uint32_t ts); //set the lamport timestamp to ts+1 if that value is larger than the current value
+
 struct page_twin {
     char* original_page_head;
     char* twin_data;
@@ -34,9 +37,13 @@ size_t pagesize;
 pthread_rwlock_t regions_lock;
 edsm_memory_region * regions = NULL;
 
+uint32_t lamport_timestamp = 0;
+pthread_mutex_t lamport_lock;
+
 void edsm_memory_init() {
     pagesize = (size_t) sysconf(_SC_PAGESIZE);
     pthread_rwlock_init(&regions_lock, NULL);
+    pthread_mutex_init(&lamport_lock,NULL);
 
     //set up the signal handler to trap memory accesses
     struct sigaction sa;
@@ -110,6 +117,7 @@ edsm_memory_region *edsm_memory_region_get(size_t size, uint32_t id) {
 
 // msg is freed elsewhere, we don't need to in this message
 // Message structure:
+// (uint32_t)  lamport_timestamp
 // (uint32_t)  NUMBER OF CONTIGUOUS DIFF SECTIONS
 // Begin repeating diff sections:
 // (uint32_t) SECTION OFFSET FROM REGION HEAD
@@ -118,6 +126,10 @@ edsm_memory_region *edsm_memory_region_get(size_t size, uint32_t id) {
 // End repeating diff setion
 int edsm_memory_handle_message(edsm_dobj *dobj, uint32_t peer_id, edsm_message *msg) {
     edsm_memory_region * region = (edsm_memory_region *) dobj;
+
+    uint32_t received_timestamp;
+    edsm_message_read(msg, &received_timestamp, sizeof(received_timestamp));
+    setLamportTimestamp(received_timestamp);
 
     uint32_t num_diff_sections;
     edsm_message_read(msg, &num_diff_sections, sizeof(num_diff_sections));
@@ -238,6 +250,7 @@ int edsm_memory_tx_end(edsm_memory_region *region) {
 
 // diffs a region and adds it to msg
 // Message structure:
+// (uint32_t)  lamport_timestamp
 // (uint32_t)  NUMBER OF CONTIGUOUS DIFF SECTIONS
 // Begin repeating diff sections:
 // (uint32_t) SECTION OFFSET FROM REGION HEAD
@@ -246,6 +259,10 @@ int edsm_memory_tx_end(edsm_memory_region *region) {
 // End repeating diff setion
 int diff_region(edsm_memory_region *region, edsm_message *msg) {
     pthread_rwlock_wrlock(&region->twin_lock);
+
+    //the lamport timestamp should already be the value we need to send out
+    uint32_t next_lamport = incrementLamportTimestamp();
+    edsm_message_write(msg, &next_lamport, sizeof(lamport_timestamp));
 
     size_t num_sections_offset = msg->data_size;
     uint32_t num_diff_sections = 0;
@@ -308,7 +325,7 @@ edsm_memory_region * find_region_for_addr(void *addr) {
 }
 
 void region_protect(edsm_memory_region * region) {
-    int rc = mprotect(region->head, region->size, PROT_READ);
+    int rc = mprotect(region->head, region->size, PROT_NONE);
     assert(rc == 0);
 }
 
@@ -322,4 +339,21 @@ struct page_twin *init_twin(void *head_addr) {
 void destroy_twin(struct page_twin * twin) {
     free(twin->twin_data);
     free(twin);
+}
+
+int incrementLamportTimestamp() {
+    pthread_mutex_lock(&lamport_lock);
+    int rc = lamport_timestamp;
+    lamport_timestamp++;
+    pthread_mutex_unlock(&lamport_lock);
+    return rc;
+
+}
+
+void setLamportTimestamp(uint32_t ts) {
+    pthread_mutex_lock(&lamport_lock);
+    if(ts + 1 > lamport_timestamp) {
+        lamport_timestamp = ts + 1;
+    }
+    pthread_mutex_unlock(&lamport_lock);
 }
