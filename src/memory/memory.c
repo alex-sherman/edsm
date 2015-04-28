@@ -210,27 +210,30 @@ struct page_twin * twin_page(edsm_memory_region *region, void *addr) {
     return twin;
 }
 
-edsm_message *edsm_memory_tx_end(edsm_memory_region *region) {
+int edsm_memory_tx_end(edsm_memory_region *region) {
     const int default_message_tail = 300;
     pthread_rwlock_rdlock(&regions_lock);
+    int rc = SUCCESS;
     if(region == NULL) {
         edsm_memory_region *s;
         LL_FOREACH(regions, s) {
             edsm_message * diff = edsm_message_create(0,default_message_tail);
             int num_sections = diff_region(s, diff);
             if(num_sections > 0) {
-                edsm_dobj_send(&s->base, diff);
+                if(edsm_dobj_send(&s->base, diff) == FAILURE)
+                    rc = FAILURE;
             }
             edsm_message_destroy(diff);
         }
     } else {
         edsm_message * diff = edsm_message_create(0,default_message_tail);
         diff_region(region, diff);
-        edsm_dobj_send(&region->base,diff);
+        if(edsm_dobj_send(&region->base,diff) == FAILURE)
+            rc = FAILURE;
         edsm_message_destroy(diff);
     }
     pthread_rwlock_unlock(&regions_lock);
-    return NULL;
+    return rc;
 }
 
 // diffs a region and adds it to msg
