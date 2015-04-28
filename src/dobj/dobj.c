@@ -28,7 +28,8 @@ uint32_t edsm_dobj_create()
 {
     edsm_mutex_lock(object_lock);
     _max_obj_id++;
-    edsm_message *msg = edsm_message_create(0, sizeof(_max_obj_id));
+    edsm_message *msg = edsm_message_create(0, sizeof(_max_obj_id) + sizeof(DOBJ_MSG_TYPE_CREATE));
+    edsm_message_write(msg, &DOBJ_MSG_TYPE_CREATE, sizeof(DOBJ_MSG_TYPE_CREATE));
     edsm_message_write(msg, &_max_obj_id, sizeof(_max_obj_id));
     if(edsm_proto_send(0, MSG_TYPE_DOBJ, msg) == FAILURE)
     {
@@ -206,7 +207,8 @@ int edsm_dobj_handle_message(uint32_t peer_id, edsm_message *msg)
             edsm_message *dobj_msg;
             if(edsm_message_read_message(msg, &dobj_msg) != FAILURE){
                 dobj->handler(dobj, peer_id, dobj_msg);
-                edsm_message_destroy(dobj_msg);
+                if(dobj_msg != NULL)
+                    edsm_message_destroy(dobj_msg);
             }
         }
         else

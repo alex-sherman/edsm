@@ -132,29 +132,33 @@ extern json_object *run_simulation(json_object *params)
     edsm_barrier *client_barrier = edsm_barrier_get(current_sim.client_barrier_id);
     edsm_barrier *completion_barrier = edsm_barrier_get(current_sim.completion_barrier_id);
 
-    int thread_count = 4;
-    struct edsm_proto_peer_id *peers1 = NULL;
-    struct edsm_proto_peer_id *peers2 = NULL;
-    for(int i = 0; i < thread_count; i++)
-    {
-        LL_APPEND(peers1, edsm_proto_peer_id_create(edsm_proto_local_id()));
-        LL_APPEND(peers2, edsm_proto_peer_id_create(edsm_proto_local_id()));
-    }
-    edsm_barrier_arm(client_barrier, peers1);
-    edsm_barrier_arm(completion_barrier, peers2);
+    struct edsm_proto_peer_id *peers = edsm_proto_get_peer_ids();
+    int thread_count;
+    struct edsm_proto_peer_id *peer;
+    LL_COUNT(peers, peer, thread_count);
 
+    edsm_barrier_arm(completion_barrier, peers);
+    peers = edsm_proto_get_peer_ids();
+    edsm_barrier_arm(client_barrier, peers);
+
+    peer = peers;
     for(int i = 0; i < thread_count; i++)
     {
         uint32_t start = i * current_sim.body_count / thread_count;
         uint32_t count = current_sim.body_count / thread_count;
         edsm_message *msg = edsm_message_create(0, 8);
+        edsm_message_write(msg, &current_sim, sizeof(current_sim));
         edsm_message_write(msg, &start, sizeof(start));
         edsm_message_write(msg, &count, sizeof(count));
 
-        edsm_task_send_up_call(task_name, edsm_proto_local_id(), 1, msg);
+        edsm_task_send_up_call(task_name, peer->id, 1, msg);
 
         edsm_message_destroy(msg);
+        peer = peer->next;
     }
+
+    edsm_barrier_wait(client_barrier);
+    edsm_barrier_notify(client_barrier);
 
     edsm_barrier_wait(completion_barrier);
 
@@ -185,6 +189,7 @@ extern int up_call(struct edsm_task_information *task, uint32_t peer_id, uint32_
     }
     else if(event == 1)
     {
+        edsm_message_read(params, &current_sim, sizeof(current_sim));
         uint32_t start;
         edsm_message_read(params, &start, sizeof(start));
         uint32_t count;
@@ -196,7 +201,10 @@ extern int up_call(struct edsm_task_information *task, uint32_t peer_id, uint32_
         body *tmp_bodies = malloc(sizeof(body) * count);
         memset(tmp_bodies, 0, sizeof(body) * count);
 
-        DEBUG_MSG("Timestep %lf for %d steps", current_sim.timestep, current_sim.step_count);
+        edsm_barrier_arm(client_barrier, edsm_proto_peer_id_create(peer_id));
+        edsm_barrier_arm(completion_barrier, edsm_proto_peer_id_create(peer_id));
+
+        DEBUG_MSG("Timestep %lf for %d steps %d %d", current_sim.timestep, current_sim.step_count, start, count);
         for(int t = 0; t < current_sim.step_count; t++)
         {
             for(int i = 0; i < count; i++)
