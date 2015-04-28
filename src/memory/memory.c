@@ -261,10 +261,10 @@ int diff_region(edsm_memory_region *region, edsm_message *msg) {
         for (int i = 0; i < pagesize/sizeof(char); ++i) {
             if(real_memory_char[i] != copied_diff_char[i]) {
                 if(contiguous_bytes != 0) {
-                    DEBUG_MSG("Continuing contiguous section");
+                    //DEBUG_MSG("Continuing contiguous section");
                     contiguous_bytes++; //increment the number of contiguous bytes in this section
                 } else {
-                    DEBUG_MSG("Starting contiguous section");
+                    //DEBUG_MSG("Starting contiguous section");
                     uint32_t offset = (uint32_t)(twin->original_page_head-(char *)region->head + i * sizeof(char));
                     edsm_message_write(msg, &offset, sizeof(offset)); //Write the offset from the region head for this section of bytes
                     continuous_bytes_offset = msg->data_size;
@@ -274,7 +274,7 @@ int diff_region(edsm_memory_region *region, edsm_message *msg) {
                     num_diff_sections++;
                 }
                 *(uint32_t *)(msg->data+continuous_bytes_offset) = contiguous_bytes;
-                DEBUG_MSG("contiguous bytes: %d number of sections %d", contiguous_bytes, num_diff_sections);
+                //DEBUG_MSG("contiguous bytes: %d number of sections %d", contiguous_bytes, num_diff_sections);
                 edsm_message_write(msg, &real_memory_char[i], sizeof(char)); //write the changed byte after handling the counter of bytes / section header
             } else {
                 contiguous_bytes = 0;

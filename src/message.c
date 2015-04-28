@@ -38,7 +38,7 @@ int edsm_message_resize(edsm_message *msg, int new_head_size, int new_tail_size)
     int old_head_size = msg->head_size;
 
     DEBUG_MSG("Resizing message: %d:%d:%d -> %d:%d:%d", old_head_size, msg->data_size, msg->tail_size, new_head_size, msg->data_size, new_tail_size);
-    msg->buffer_size = new_head_size + new_tail_size;
+    msg->buffer_size = new_head_size + msg->data_size + new_tail_size;
     msg->buffer = malloc(msg->buffer_size);
     if (!msg->buffer) {
         edsm_message_destroy(msg);

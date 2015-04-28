@@ -1,5 +1,6 @@
 #include "barrier.h"
 #include "debug.h"
+#include "memory/memory.h"
 
 int edsm_barrier_handle_message(edsm_dobj *dobj, uint32_t peer_id, edsm_message *message)
 {
@@ -25,6 +26,7 @@ int edsm_barrier_arm(edsm_barrier *barrier, struct edsm_proto_peer_id *peers)
 
 int edsm_barrier_notify(edsm_barrier *barrier)
 {
+    edsm_memory_tx_end(NULL);
     edsm_dobj_send((edsm_dobj *)barrier, NULL);
     edsm_reply_waiter_add_reply(barrier->waiter, edsm_proto_local_id());
     return SUCCESS;

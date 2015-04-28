@@ -108,6 +108,7 @@ int edsm_mutex_lock(edsm_mutex *mutex)
 int edsm_mutex_unlock(edsm_mutex *mutex)
 {
     pthread_mutex_lock(&mutex->lock);
+    edsm_memory_tx_end(NULL);
     request_entry *entry, *tmp;
     LL_FOREACH_SAFE(mutex->requests, entry, tmp)
     {
