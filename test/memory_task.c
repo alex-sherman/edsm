@@ -47,10 +47,11 @@ extern int up_call(struct edsm_task_information *task, uint32_t peer_id, uint32_
         DEBUG_MSG("Got upcall to join memory region id %d", memory_region_id);
         shared_region = edsm_memory_region_get(memory_region_size, memory_region_id);
         
-        ((uint32_t *)shared_region->head)[0] = 2563;
+        ((uint32_t *)shared_region->head)[0] = 123456;
         edsm_memory_tx_end(NULL);
-
+        DEBUG_MSG("tx done");
         ((uint32_t *)shared_region->head)[12] = 2213;
+        DEBUG_MSG("Change done");
         edsm_memory_tx_end(NULL);
 
 //        while(1==1) {
