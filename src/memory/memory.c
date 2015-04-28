@@ -76,14 +76,16 @@ edsm_memory_region *edsm_memory_region_get(size_t size, uint32_t id) {
     size_t remainder = size % pagesize;
     if(remainder != 0)
         size = size+pagesize-remainder;
-    new_region->size = size;
 
-    int rc = posix_memalign(&new_region->head, pagesize, new_region->size);
+
+    int rc = posix_memalign(&new_region->head, pagesize, size);
     if(rc != 0) {
         ERROR_MSG("memory allocation");
         pthread_rwlock_unlock(&regions_lock);
         return NULL;
     }
+
+    new_region->size = size;
     DEBUG_MSG("Got a memory region of size %d", new_region->size);
 
     pthread_rwlock_init(&new_region->twin_lock, NULL);
