@@ -2,6 +2,7 @@
 // Created by peter on 4/28/15.
 //
 
+#define _GNU_SOURCE 1
 #include <stdlib.h>
 #include <malloc.h>
 #include <debug.h>
@@ -56,23 +57,28 @@ int edsm_memory_handle_message(edsm_dobj *dobj, uint32_t peer_id, edsm_message *
 
         struct edsm_memory_page_twin * dest_twin = NULL;
         LL_SEARCH_SCALAR(region->twins, dest_twin, original_page_head, change_destination_page_aligned);
-        if(dest_twin == NULL) {
-            dest_twin = edsm_memory_twin_page(region, change_destination_page_aligned);
-        }
 
-        //now that the page is twinned we can make it r/w, for this thread or others
-        int rc = mprotect(change_destination_page_aligned, 1, PROT_READ | PROT_WRITE);
+        int rc = mprotect(change_destination_page_aligned, 1, PROT_READ);
         assert(rc == 0);
 
         char * changed_bytes = malloc(contiguous_bytes);
         edsm_message_read(msg, changed_bytes, contiguous_bytes);
-        //perform the actual update of main memory
-        memcpy(change_destination,changed_bytes,contiguous_bytes);
-        //update the contents of the twin that was just created
-        ptrdiff_t offset_in_twin = change_destination - dest_twin->original_page_head;
-        assert(offset_in_twin+contiguous_bytes <= edsm_memory_pagesize);
-        memcpy(dest_twin->twin_data + offset_in_twin,changed_bytes,contiguous_bytes);
 
+        char * shadow_page;
+        rc = posix_memalign((void**)&shadow_page, edsm_memory_pagesize, edsm_memory_pagesize);
+        assert(rc == 0);
+        memcpy(shadow_page,change_destination_page_aligned, edsm_memory_pagesize);
+
+        //perform the update of shadow page
+        memcpy(shadow_page+remainder,changed_bytes,contiguous_bytes);
+        void * rp = mremap(shadow_page, edsm_memory_pagesize, edsm_memory_pagesize, MREMAP_FIXED | MREMAP_MAYMOVE, change_destination_page_aligned);
+
+        if(dest_twin != NULL) {
+            //update the contents of the twin
+            ptrdiff_t offset_in_twin = change_destination - dest_twin->original_page_head;
+            assert(offset_in_twin + contiguous_bytes <= edsm_memory_pagesize);
+            memcpy(dest_twin->twin_data + offset_in_twin, changed_bytes, contiguous_bytes);
+        }
         pthread_rwlock_unlock(&region->region_lock);
     }
 
