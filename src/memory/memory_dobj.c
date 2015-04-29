@@ -75,8 +75,8 @@ int edsm_memory_handle_message(edsm_dobj *dobj, uint32_t peer_id, edsm_message *
             assert(rc == 0);
 
             char * shadow_page = NULL;
-            rc = posix_memalign((void**)&shadow_page, edsm_memory_pagesize, edsm_memory_pagesize);
-            assert(rc == 0);
+            shadow_page = mmap(shadow_page, edsm_memory_pagesize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
+            assert(shadow_page != NULL);
             memcpy(shadow_page,change_destination_page_aligned, edsm_memory_pagesize);
 
             //perform the update of shadow page
