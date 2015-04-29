@@ -70,7 +70,7 @@ int edsm_mutex_handle_message(edsm_dobj *dobj, uint32_t peer_id, edsm_message *m
 edsm_mutex *edsm_mutex_get(uint32_t id)
 {
     edsm_mutex *output = edsm_dobj_get(id, sizeof(edsm_mutex), edsm_mutex_handle_message);
-    if(output->waiter == NULL)
+    if(!edsm_dobj_test_and_init((edsm_dobj *)output))
     {
         pthread_mutex_init(&output->lock, NULL);
         pthread_mutex_init(&output->local_mutex, NULL);

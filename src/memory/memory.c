@@ -51,7 +51,8 @@ edsm_memory_region *edsm_memory_region_get(size_t size, uint32_t id) {
 
     //The region has already been allocated by a previous local call
     //this function
-    if(new_region->size != 0) {
+    if(edsm_dobj_test_and_init((edsm_dobj *)new_region))
+    {
         pthread_rwlock_unlock(&edsm_memory_regions_lock);
         return new_region;
     }

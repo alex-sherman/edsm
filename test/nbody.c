@@ -105,6 +105,21 @@ extern json_object *init_simulation(json_object *params)
     current_sim.completion_barrier_id = edsm_dobj_create();
 
     edsm_memory_region *bodies_region = edsm_memory_region_get(sizeof(body) * current_sim.body_count, current_sim.bodies_id);
+    edsm_barrier *completion_barrier = edsm_barrier_get(current_sim.completion_barrier_id);
+    edsm_barrier_arm(completion_barrier, edsm_proto_get_peer_ids());
+
+    struct edsm_proto_peer_id *peers = edsm_proto_get_peer_ids();
+    struct edsm_proto_peer_id *peer;
+    LL_FOREACH(peers, peer)
+    {
+
+        edsm_message *msg = edsm_message_create(0, 20);
+        edsm_message_write(msg, &current_sim, sizeof(current_sim));
+        edsm_task_send_up_call(task_name, peer->id, 2, msg);
+    }
+    DEBUG_MSG("Waiting for region join");
+    edsm_barrier_wait(completion_barrier);
+    DEBUG_MSG("Region join done");
 
     body *bodies = bodies_region->head;
 
@@ -117,6 +132,8 @@ extern json_object *init_simulation(json_object *params)
         bodies[i].vy = json_object_get_double(json_object_array_get_idx(j_body, 3));
         bodies[i].mass = json_object_get_double(json_object_array_get_idx(j_body, 4));
     }
+
+    edsm_barrier_notify(completion_barrier);
 
     json_object *output = json_object_new_array();
 
@@ -221,6 +238,13 @@ extern int up_call(struct edsm_task_information *task, uint32_t peer_id, uint32_
         edsm_barrier_notify(client_barrier);
         edsm_barrier_wait(client_barrier);
         memcpy((body *)bodies_region->head + start, tmp_bodies, sizeof(body) * count);
+        edsm_barrier_notify(completion_barrier);
+    }
+    else if(event == 2)
+    {
+        edsm_message_read(params, &current_sim, sizeof(current_sim));
+        edsm_memory_region_get(sizeof(body) * current_sim.body_count, current_sim.bodies_id);
+        edsm_barrier *completion_barrier = edsm_barrier_get(current_sim.completion_barrier_id);
         edsm_barrier_notify(completion_barrier);
     }
     return SUCCESS;

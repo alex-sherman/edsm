@@ -156,6 +156,11 @@ void *edsm_dobj_get(uint32_t id, size_t size, edsm_dobj_message_handler_f handle
     return output;
 }
 
+int edsm_dobj_test_and_init(edsm_dobj *dobj)
+{
+    return __sync_lock_test_and_set(&dobj->inited, 1);
+}
+
 int edsm_dobj_send(edsm_dobj *dobj, edsm_message *dobj_msg)
 {
     if(dobj->peers != NULL)
@@ -202,7 +207,7 @@ int edsm_dobj_handle_message(uint32_t peer_id, edsm_message *msg)
         edsm_dobj *dobj = NULL;
         uint32_t dobj_id = _read_dobj(msg, &dobj);
         //DEBUG_MSG("Got dobj message for obj %d from %d", dobj_id, peer_id);
-        if(dobj != NULL)
+        if(dobj != NULL && dobj->inited)
         {
             edsm_message *dobj_msg;
             if(edsm_message_read_message(msg, &dobj_msg) != FAILURE){

@@ -11,9 +11,12 @@ int edsm_barrier_handle_message(edsm_dobj *dobj, uint32_t peer_id, edsm_message 
 edsm_barrier *edsm_barrier_get(uint32_t id)
 {
     edsm_barrier *output = edsm_dobj_get(id, sizeof(edsm_barrier), edsm_barrier_handle_message);
-    if(output->waiter == NULL)
+    if(!edsm_dobj_test_and_init((edsm_dobj *)output))
     {
-        output->waiter = edsm_reply_waiter_create();
+        if(output->waiter == NULL)
+        {
+            output->waiter = edsm_reply_waiter_create();
+        }
     }
     return output;
 }
