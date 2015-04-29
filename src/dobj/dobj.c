@@ -201,7 +201,7 @@ int edsm_dobj_handle_message(uint32_t peer_id, edsm_message *msg)
     {
         edsm_dobj *dobj = NULL;
         uint32_t dobj_id = _read_dobj(msg, &dobj);
-        DEBUG_MSG("Got dobj message for obj %d from %d", dobj_id, peer_id);
+        //DEBUG_MSG("Got dobj message for obj %d from %d", dobj_id, peer_id);
         if(dobj != NULL)
         {
             edsm_message *dobj_msg;

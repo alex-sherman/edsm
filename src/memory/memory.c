@@ -35,7 +35,8 @@ void edsm_memory_init() {
 
 static void page_trap_handler(int sig, siginfo_t *si, void *unused)
 {
-    printf("Got SIGSEGV at address: 0x%lx\n", (long) si->si_addr);
+    long addr = (long)si->si_addr;
+    DEBUG_MSG("Got SIGSEGV at address: 0x%lx", addr);
     edsm_memory_region *region = find_region_for_addr(si->si_addr);
     if(region == NULL)
         segfault_handler(sig);
@@ -143,7 +144,12 @@ edsm_memory_region * find_region_for_addr(void *addr) {
 }
 
 void region_protect(edsm_memory_region * region) {
-    int rc = mprotect(region->head, region->size, PROT_NONE);
+    // There is no reason to segfault on reads and twin pages at the moment
+    // reading an untwinned page should be fine, because we expect everyone who
+    // wants data in their pages to be joined to the dobj before it is written there
+    // this should be changed to PROT_NONE if you want to trap on reads to
+    // uninitialized pages
+    int rc = mprotect(region->head, region->size, PROT_READ);
     assert(rc == 0);
 }
 

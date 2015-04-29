@@ -4,6 +4,7 @@
 
 #define _GNU_SOURCE 1
 #include <stdlib.h>
+#include <unistd.h>
 #include <malloc.h>
 #include <debug.h>
 #include "memory.h"
@@ -35,7 +36,7 @@ int edsm_memory_handle_message(edsm_dobj *dobj, uint32_t peer_id, edsm_message *
 
     uint32_t num_diff_sections;
     edsm_message_read(msg, &num_diff_sections, sizeof(num_diff_sections));
-    DEBUG_MSG("Recieved new diff from %d with %d sections", peer_id, num_diff_sections);
+    //DEBUG_MSG("Recieved new diff from %d with %d sections", peer_id, num_diff_sections);
 
 
     for (int i = 0; i < num_diff_sections; ++i) {
@@ -45,9 +46,6 @@ int edsm_memory_handle_message(edsm_dobj *dobj, uint32_t peer_id, edsm_message *
         edsm_message_read(msg, &contiguous_bytes, sizeof(contiguous_bytes));
         char * change_destination = (char *)region->head + offset;
 
-        //before we can write the bytes into memory, we need to make sure that the page is writable and twinned
-        //otherwise we might trigger the signal handler with out own activities here
-        //which would cause deadlock when it tried to lock region_lock for writing
         char *change_destination_page_aligned = change_destination;
         size_t remainder = (size_t)change_destination % edsm_memory_pagesize;
         if(remainder != 0)
@@ -55,6 +53,9 @@ int edsm_memory_handle_message(edsm_dobj *dobj, uint32_t peer_id, edsm_message *
 
         pthread_rwlock_wrlock(&region->region_lock);
 
+        //before we can write the bytes into memory, we need to make sure that the page is writable and twinned
+        //otherwise we might trigger the signal handler with out own activities here
+        //which would cause deadlock when it tried to lock region_lock for writing
         struct edsm_memory_page_twin * dest_twin = NULL;
         LL_SEARCH_SCALAR(region->twins, dest_twin, original_page_head, change_destination_page_aligned);
 
@@ -64,20 +65,38 @@ int edsm_memory_handle_message(edsm_dobj *dobj, uint32_t peer_id, edsm_message *
         char * changed_bytes = malloc(contiguous_bytes);
         edsm_message_read(msg, changed_bytes, contiguous_bytes);
 
-        char * shadow_page;
-        rc = posix_memalign((void**)&shadow_page, edsm_memory_pagesize, edsm_memory_pagesize);
-        assert(rc == 0);
-        memcpy(shadow_page,change_destination_page_aligned, edsm_memory_pagesize);
+        // if this page has not been used (twinned) we can do a shadow copy and swap
+        if(dest_twin == NULL) {
+            DEBUG_MSG("Applying diff, doing shadow page swap.")
+            // make the main memory page readable so we can shadow copy it
+            // if another thread tries to write to it, it will get into the signal handler
+            // and block on region_lock until we're finished applying the diff
+            int rc = mprotect(change_destination_page_aligned, 1, PROT_READ);
+            assert(rc == 0);
 
-        //perform the update of shadow page
-        memcpy(shadow_page+remainder,changed_bytes,contiguous_bytes);
-        void * rp = mremap(shadow_page, edsm_memory_pagesize, edsm_memory_pagesize, MREMAP_FIXED | MREMAP_MAYMOVE, change_destination_page_aligned);
+            char * shadow_page;
+            rc = posix_memalign((void**)&shadow_page, edsm_memory_pagesize, edsm_memory_pagesize);
+            assert(rc == 0);
+            memcpy(shadow_page,change_destination_page_aligned, edsm_memory_pagesize);
 
-        if(dest_twin != NULL) {
-            //update the contents of the twin
+            //perform the update of shadow page
+            memcpy(shadow_page+remainder,changed_bytes,contiguous_bytes);
+
+            //make the shadow page read only before remapping it into main memory
+            rc = mprotect(shadow_page, 1, PROT_READ);
+            assert(rc==0);
+
+            void * rp = mremap(shadow_page, edsm_memory_pagesize, edsm_memory_pagesize, MREMAP_FIXED | MREMAP_MAYMOVE, change_destination_page_aligned);
+            assert(rp != (void*)-1);
+        } else { //if the page has been twinned, the changed need to be applied to both the region and twin
+            //because the page is twinned it should be r/w, for this thread or others
+            //perform the actual update of main memory
+            DEBUG_MSG("Applying diff, page already twinned.")
+            memcpy(change_destination,changed_bytes,contiguous_bytes);
+            //update the contents of the twin that was just created
             ptrdiff_t offset_in_twin = change_destination - dest_twin->original_page_head;
-            assert(offset_in_twin + contiguous_bytes <= edsm_memory_pagesize);
-            memcpy(dest_twin->twin_data + offset_in_twin, changed_bytes, contiguous_bytes);
+            assert(offset_in_twin+contiguous_bytes <= edsm_memory_pagesize);
+            memcpy(dest_twin->twin_data + offset_in_twin,changed_bytes,contiguous_bytes);
         }
         pthread_rwlock_unlock(&region->region_lock);
     }

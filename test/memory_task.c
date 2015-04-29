@@ -31,9 +31,15 @@ extern int up_call(struct edsm_task_information *task, uint32_t peer_id, uint32_
                 edsm_task_send_up_call(task_name, peer->id, 1, msg);
             }
             edsm_message_destroy(msg);
-
-            while(1==1) {
+            for (int i = 0; i < 7; ++i)  {
                 DEBUG_MSG("Value is: %d", ((uint32_t *) shared_region->head)[12]);
+                sleep(1);
+            }
+            DEBUG_MSG("Changing value in shared region");
+            ((uint32_t *)shared_region->head)[12] = ((uint32_t *)shared_region->head)[12] + 1;
+            edsm_memory_tx_end(NULL);
+            for (int i = 0; i < 11; ++i)  {
+                DEBUG_MSG("2 Value is: %d", ((uint32_t *) shared_region->head)[12]);
                 sleep(1);
             }
         }
@@ -50,15 +56,16 @@ extern int up_call(struct edsm_task_information *task, uint32_t peer_id, uint32_
         ((uint32_t *)shared_region->head)[0] = 123456;
         edsm_memory_tx_end(NULL);
         DEBUG_MSG("tx done");
-        ((uint32_t *)shared_region->head)[12] = 2213;
+        ((uint32_t *)shared_region->head)[12] = 1;
         DEBUG_MSG("Change done");
         edsm_memory_tx_end(NULL);
 
         while(1==1) {
             sleep(5);
+            DEBUG_MSG("Before value: %d", ((uint32_t *) shared_region->head)[12]);
             ((uint32_t *)shared_region->head)[12] = ((uint32_t *)shared_region->head)[12] + 1;
-            edsm_memory_tx_end(NULL);
             DEBUG_MSG("Changed value to: %d", ((uint32_t *) shared_region->head)[12]);
+            edsm_memory_tx_end(NULL);
         }
     }
     return SUCCESS;
