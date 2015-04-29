@@ -67,14 +67,14 @@ int edsm_memory_handle_message(edsm_dobj *dobj, uint32_t peer_id, edsm_message *
 
         // if this page has not been used (twinned) we can do a shadow copy and swap
         if(dest_twin == NULL) {
-            DEBUG_MSG("Applying diff, doing shadow page swap.")
+            DEBUG_MSG("Applying diff at addr 0x%lx, doing shadow page swap.", change_destination_page_aligned);
             // make the main memory page readable so we can shadow copy it
             // if another thread tries to write to it, it will get into the signal handler
             // and block on region_lock until we're finished applying the diff
             int rc = mprotect(change_destination_page_aligned, 1, PROT_READ);
             assert(rc == 0);
 
-            char * shadow_page;
+            char * shadow_page = NULL;
             rc = posix_memalign((void**)&shadow_page, edsm_memory_pagesize, edsm_memory_pagesize);
             assert(rc == 0);
             memcpy(shadow_page,change_destination_page_aligned, edsm_memory_pagesize);
@@ -88,6 +88,8 @@ int edsm_memory_handle_message(edsm_dobj *dobj, uint32_t peer_id, edsm_message *
 
             void * rp = mremap(shadow_page, edsm_memory_pagesize, edsm_memory_pagesize, MREMAP_FIXED | MREMAP_MAYMOVE, change_destination_page_aligned);
             assert(rp != (void*)-1);
+
+            munmap(shadow_page, edsm_memory_pagesize);
         } else { //if the page has been twinned, the changed need to be applied to both the region and twin
             //because the page is twinned it should be r/w, for this thread or others
             //perform the actual update of main memory
@@ -98,6 +100,7 @@ int edsm_memory_handle_message(edsm_dobj *dobj, uint32_t peer_id, edsm_message *
             assert(offset_in_twin+contiguous_bytes <= edsm_memory_pagesize);
             memcpy(dest_twin->twin_data + offset_in_twin,changed_bytes,contiguous_bytes);
         }
+        free(changed_bytes);
         pthread_rwlock_unlock(&region->region_lock);
     }
 
