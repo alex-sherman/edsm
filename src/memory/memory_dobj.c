@@ -59,9 +59,6 @@ int edsm_memory_handle_message(edsm_dobj *dobj, uint32_t peer_id, edsm_message *
         struct edsm_memory_page_twin * dest_twin = NULL;
         LL_SEARCH_SCALAR(region->twins, dest_twin, original_page_head, change_destination_page_aligned);
 
-        int rc = mprotect(change_destination_page_aligned, 1, PROT_READ);
-        assert(rc == 0);
-
         char * changed_bytes = malloc(contiguous_bytes);
         edsm_message_read(msg, changed_bytes, contiguous_bytes);
 
