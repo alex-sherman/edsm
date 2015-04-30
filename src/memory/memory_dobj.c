@@ -37,22 +37,20 @@ int edsm_memory_handle_message(edsm_dobj *dobj, uint32_t peer_id, edsm_message *
     edsm_message_read(msg, &received_timestamp, sizeof(received_timestamp));
     setLamportTimestamp(region, received_timestamp);
 
-    uint32_t num_diff_sections;
-    edsm_message_read(msg, &num_diff_sections, sizeof(num_diff_sections));
-    //DEBUG_MSG("Recieved new diff from %d with %d sections", peer_id, num_diff_sections);
+    uint32_t num_diff_pages;
+    edsm_message_read(msg, &num_diff_pages, sizeof(num_diff_pages));
+    //DEBUG_MSG("Recieved new diff from %d with %d pages", peer_id, num_diff_pages);
 
 
-    for (int i = 0; i < num_diff_sections; ++i) {
-        uint32_t offset;
-        uint32_t contiguous_bytes;
-        edsm_message_read(msg, &offset, sizeof(offset));
-        edsm_message_read(msg, &contiguous_bytes, sizeof(contiguous_bytes));
-        char * change_destination = (char *)region->head + offset;
+    for (int i = 0; i < num_diff_pages; ++i) {
+        uint32_t page_offset;
+        edsm_message_read(msg, &page_offset, sizeof(page_offset));
 
-        char *change_destination_page_aligned = change_destination;
-        size_t remainder = (size_t)change_destination % edsm_memory_pagesize;
-        if(remainder != 0)
-            change_destination_page_aligned = change_destination-remainder;
+        uint16_t num_page_sections;
+        edsm_message_read(msg, &num_page_sections, sizeof(num_page_sections));
+
+        char * change_destination = (char *)region->head + page_offset;
+        assert((ptrdiff_t)change_destination % edsm_memory_pagesize == 0);
 
         pthread_rwlock_wrlock(&region->region_lock);
 
@@ -60,47 +58,56 @@ int edsm_memory_handle_message(edsm_dobj *dobj, uint32_t peer_id, edsm_message *
         //otherwise we might trigger the signal handler with out own activities here
         //which would cause deadlock when it tried to lock region_lock for writing
         struct edsm_memory_page_twin * dest_twin = NULL;
-        LL_SEARCH_SCALAR(region->twins, dest_twin, original_page_head, change_destination_page_aligned);
-
-        char * changed_bytes = malloc(contiguous_bytes);
-        edsm_message_read(msg, changed_bytes, contiguous_bytes);
+        LL_SEARCH_SCALAR(region->twins, dest_twin, original_page_head, change_destination);
 
         // if this page has not been used (twinned) we can do a shadow copy and swap
         if(dest_twin == NULL) {
-            DEBUG_MSG("Applying diff at addr 0x%lx, doing shadow page swap.", change_destination_page_aligned);
+            DEBUG_MSG("Applying diff at addr 0x%lx, doing shadow page swap.", change_destination);
             // make the main memory page readable so we can shadow copy it
             // if another thread tries to write to it, it will get into the signal handler
             // and block on region_lock until we're finished applying the diff
-            int rc = mprotect(change_destination_page_aligned, 1, PROT_READ);
+            int rc = mprotect(change_destination, 1, PROT_READ);
             assert(rc == 0);
 
             char * shadow_page = NULL;
             shadow_page = mmap(shadow_page, edsm_memory_pagesize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
             assert(shadow_page != NULL);
-            memcpy(shadow_page,change_destination_page_aligned, edsm_memory_pagesize);
+            memcpy(shadow_page,change_destination, edsm_memory_pagesize);
 
-            //perform the update of shadow page
-            memcpy(shadow_page+remainder,changed_bytes,contiguous_bytes);
+            for (int j = 0; j < num_page_sections; ++j) {
+                uint16_t section_offset_from_page;
+                uint16_t contiguous_bytes;
+                edsm_message_read(msg, &section_offset_from_page, sizeof(section_offset_from_page));
+                edsm_message_read(msg, &contiguous_bytes, sizeof(contiguous_bytes));
+
+                //perform the update of the shadow page
+                edsm_message_read(msg, shadow_page+section_offset_from_page, contiguous_bytes);
+            }
 
             //make the shadow page read only before remapping it into main memory
             rc = mprotect(shadow_page, 1, PROT_READ);
             assert(rc==0);
 
-            void * rp = mremap(shadow_page, edsm_memory_pagesize, edsm_memory_pagesize, MREMAP_FIXED | MREMAP_MAYMOVE, change_destination_page_aligned);
+            void * rp = mremap(shadow_page, edsm_memory_pagesize, edsm_memory_pagesize, MREMAP_FIXED | MREMAP_MAYMOVE, change_destination);
             assert(rp != (void*)-1);
 
             munmap(shadow_page, edsm_memory_pagesize);
-        } else { //if the page has been twinned, the changed need to be applied to both the region and twin
+        } else {
+            //if the page has been twinned, the changed need to be applied to both the region and twin
             //because the page is twinned it should be r/w, for this thread or others
-            //perform the actual update of main memory
             DEBUG_MSG("Applying diff, page already twinned.")
-            memcpy(change_destination,changed_bytes,contiguous_bytes);
-            //update the contents of the twin that was just created
-            ptrdiff_t offset_in_twin = change_destination - dest_twin->original_page_head;
-            assert(offset_in_twin+contiguous_bytes <= edsm_memory_pagesize);
-            memcpy(dest_twin->twin_data + offset_in_twin,changed_bytes,contiguous_bytes);
+            for (int j = 0; j < num_page_sections; ++j) {
+                uint16_t section_offset_from_page;
+                uint16_t contiguous_bytes;
+                edsm_message_read(msg, &section_offset_from_page, sizeof(section_offset_from_page));
+                edsm_message_read(msg, &contiguous_bytes, sizeof(contiguous_bytes));
+                assert(section_offset_from_page + contiguous_bytes <= edsm_memory_pagesize);
+                //update the contents of the twin
+                edsm_message_read(msg, dest_twin->twin_data+section_offset_from_page, contiguous_bytes);
+                //copy the change back into main memory region
+                memcpy(change_destination+section_offset_from_page,dest_twin->twin_data+section_offset_from_page,contiguous_bytes);
+            }
         }
-        free(changed_bytes);
         pthread_rwlock_unlock(&region->region_lock);
     }
 
