@@ -13,7 +13,7 @@
 
 int diff_region(edsm_memory_region *region, edsm_message *msg);
 
-int incrementLamportTimestamp(edsm_memory_region * region); // get the next value of the timestamp
+uint32_t incrementLamportTimestamp(edsm_memory_region * region); // get the next value of the timestamp
 void setLamportTimestamp(edsm_memory_region *region, uint32_t ts); // set the lamport timestamp to ts if that value is larger than the current value
 
 
@@ -21,12 +21,15 @@ void setLamportTimestamp(edsm_memory_region *region, uint32_t ts); // set the la
 // msg is freed elsewhere, we don't need to in this message
 // Message structure:
 // (uint32_t)  lamport_timestamp
-// (uint32_t)  NUMBER OF CONTIGUOUS DIFF SECTIONS
+// (uint32_t)  number of pages in diff
+// Begin repeating page section
+// (uint32_t)  page offset from region head
+// (uint16_t)  NUMBER OF CONTIGUOUS DIFF SECTIONS IN PAGE
 // Begin repeating diff sections:
-// (uint32_t) SECTION OFFSET FROM REGION HEAD
-// (uint32_t)  NUMBER OF CONTIGUOUS BYTES IN SECTION
+// (uint16_t) SECTION OFFSET FROM PAGE HEAD
+// (uint16_t)  NUMBER OF CONTIGUOUS BYTES IN SECTION
 // (char[n])   Changed data
-// End repeating diff setion
+// End repeating diff section
 int edsm_memory_handle_message(edsm_dobj *dobj, uint32_t peer_id, edsm_message *msg) {
     edsm_memory_region * region = (edsm_memory_region *) dobj;
 
@@ -133,12 +136,15 @@ int edsm_memory_tx_end(edsm_memory_region *region) {
 // diffs a region and adds it to msg
 // Message structure:
 // (uint32_t)  lamport_timestamp
-// (uint32_t)  NUMBER OF CONTIGUOUS DIFF SECTIONS
+// (uint32_t)  number of pages in diff
+// Begin repeating page section
+// (uint32_t)  page offset from region head
+// (uint16_t)  NUMBER OF CONTIGUOUS DIFF SECTIONS IN PAGE
 // Begin repeating diff sections:
-// (uint32_t) SECTION OFFSET FROM REGION HEAD
-// (uint32_t)  NUMBER OF CONTIGUOUS BYTES IN SECTION
+// (uint16_t) SECTION OFFSET FROM PAGE HEAD
+// (uint16_t)  NUMBER OF CONTIGUOUS BYTES IN SECTION
 // (char[n])   Changed data
-// End repeating diff setion
+// End repeating diff section
 int diff_region(edsm_memory_region *region, edsm_message *msg) {
     pthread_rwlock_wrlock(&region->region_lock);
 
@@ -193,10 +199,10 @@ int diff_region(edsm_memory_region *region, edsm_message *msg) {
     return num_diff_sections;
 }
 
-int incrementLamportTimestamp(edsm_memory_region * region) {
+uint32_t incrementLamportTimestamp(edsm_memory_region * region) {
     pthread_mutex_lock(&region->lamport_lock);
     region->lamport_timestamp++;
-    int rc = region->lamport_timestamp;
+    uint32_t rc = region->lamport_timestamp;
     pthread_mutex_unlock(&region->lamport_lock);
     return rc;
 
