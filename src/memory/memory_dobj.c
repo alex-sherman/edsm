@@ -152,12 +152,19 @@ int diff_region(edsm_memory_region *region, edsm_message *msg) {
     uint32_t next_lamport = incrementLamportTimestamp(region);
     edsm_message_write(msg, &next_lamport, sizeof(next_lamport));
 
-    size_t num_sections_offset = msg->data_size;
-    uint32_t num_diff_sections = 0;
-    edsm_message_write(msg, &num_diff_sections, sizeof(num_diff_sections)); //writing zero for now, will change later
+    size_t num_pages_offset = msg->data_size;
+    uint32_t num_diff_pages = 0;
+    edsm_message_write(msg, &num_diff_pages, sizeof(num_diff_pages)); //writing zero for now, will change if pages are added
 
     struct edsm_memory_page_twin *twin, *s;
     LL_FOREACH_SAFE(region->twins, twin, s) {
+        uint32_t page_offset_from_region = (uint32_t)(twin->original_page_head-(char *)region->head);
+        edsm_message_write(msg, &page_offset_from_region, sizeof(page_offset_from_region));
+
+        size_t num_sections_offset = msg->data_size;
+        uint16_t num_page_sections = 0;
+        edsm_message_write(msg, &num_page_sections, sizeof(num_page_sections)); //writing zero for now, will change later
+
         //need to protect page from being written
         int rc = mprotect(twin->original_page_head, 1, PROT_READ);
         assert(rc == 0);
@@ -165,24 +172,23 @@ int diff_region(edsm_memory_region *region, edsm_message *msg) {
         char *real_memory_char = twin->original_page_head;
         char *copied_diff_char = twin->twin_data;
         size_t continuous_bytes_offset = 0;
-        uint32_t contiguous_bytes = 0;
+        uint16_t contiguous_bytes = 0;
         for (int i = 0; i < edsm_memory_pagesize /sizeof(char); ++i) {
             if(real_memory_char[i] != copied_diff_char[i]) {
                 if(contiguous_bytes != 0) {
-                    //DEBUG_MSG("Continuing contiguous section");
                     contiguous_bytes++; //increment the number of contiguous bytes in this section
                 } else {
-                    //DEBUG_MSG("Starting contiguous section");
-                    uint32_t offset = (uint32_t)(twin->original_page_head-(char *)region->head + i * sizeof(char));
-                    edsm_message_write(msg, &offset, sizeof(offset)); //Write the offset from the region head for this section of bytes
-                    continuous_bytes_offset = msg->data_size;
-                    contiguous_bytes = 1; // counter for how many contiguous bytes are about to be presented
-                    edsm_message_write(msg, &contiguous_bytes, sizeof(contiguous_bytes));
+                    //Write the diff_offset_from_page from the region head for this section of bytes
+                    uint16_t diff_offset_from_page = (uint16_t)(i * sizeof(char));
+                    edsm_message_write(msg, &diff_offset_from_page, sizeof(diff_offset_from_page));
 
-                    num_diff_sections++;
+                    continuous_bytes_offset = msg->data_size;
+                    edsm_message_write(msg, &contiguous_bytes, sizeof(contiguous_bytes));
+                    contiguous_bytes = 1; // counter for how many contiguous bytes are about to be presented
+
+                    num_page_sections++;
                 }
-                *(uint32_t *)(msg->data+continuous_bytes_offset) = contiguous_bytes;
-                //DEBUG_MSG("contiguous bytes: %d number of sections %d", contiguous_bytes, num_diff_sections);
+                *(uint16_t *)(msg->data+continuous_bytes_offset) = contiguous_bytes;
                 edsm_message_write(msg, &real_memory_char[i], sizeof(char)); //write the changed byte after handling the counter of bytes / section header
             } else {
                 contiguous_bytes = 0;
@@ -190,13 +196,18 @@ int diff_region(edsm_memory_region *region, edsm_message *msg) {
         }
         LL_DELETE(region->twins, twin);
         edsm_memory_destroy_twin(twin);
+
+        //write out the total count of sections in this page
+        *(uint16_t *)(msg->data+num_sections_offset) = num_page_sections;
+
+        num_diff_pages++;
     }
+    //write out the total count of pages
+    *(uint32_t *)(msg->data+num_pages_offset) = num_diff_pages;
 
-    *(uint32_t *)(msg->data+num_sections_offset) = num_diff_sections;
-
-    DEBUG_MSG("Diff created with %d sections", num_diff_sections);
+    DEBUG_MSG("Diff created with %d pages", num_diff_pages);
     pthread_rwlock_unlock(&region->region_lock);
-    return num_diff_sections;
+    return num_diff_pages;
 }
 
 uint32_t incrementLamportTimestamp(edsm_memory_region * region) {
