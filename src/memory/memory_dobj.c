@@ -62,7 +62,7 @@ int edsm_memory_handle_message(edsm_dobj *dobj, uint32_t peer_id, edsm_message *
 
         // if this page has not been used (twinned) we can do a shadow copy and swap
         if(dest_twin == NULL) {
-            DEBUG_MSG("Applying diff at addr 0x%lx, doing shadow page swap.", change_destination);
+            DEBUG_MSG("Applying diff with %d sections at page 0x%lx, doing shadow page swap.", num_page_sections, change_destination);
             // make the main memory page readable so we can shadow copy it
             // if another thread tries to write to it, it will get into the signal handler
             // and block on region_lock until we're finished applying the diff
