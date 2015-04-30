@@ -156,23 +156,34 @@ edsm_message *read_message_from_socket(int fd) {
 // (for example by connecting to them with group_join)
 // Fills in the peer variable with the value for the remote peer
 int read_and_handle_init_message(struct peer_information *peer) {
+
+    int rtn = FAILURE;
+
     edsm_message *init_message = read_message_from_socket(peer->sock_fd);
     if(init_message == NULL) {
         DEBUG_MSG("Reading init message from peer failed");
         return FAILURE;
     }
+    edsm_message *init_response = edsm_message_create(0, 200);
+
     uint32_t msg_type;
     edsm_message_read(init_message, &msg_type, 4);
     if(msg_type != MSG_TYPE_PROTO_INIT) {
         DEBUG_MSG("First message recieved from peer was not init.");
-        goto free_and_fail;
+        goto free_and_return;
     }
+
+    edsm_message_write(init_response, &my_id, sizeof(uint32_t)); // tell the peer this node's id
 
     uint32_t recvd_peer_id;
     edsm_message_read(init_message, &recvd_peer_id, sizeof(recvd_peer_id));
     if(recvd_peer_id == 0) { // 0 means that the peer has no ID yet
         //TODO: Lock on ID here
         peer->id = get_next_peer_id();
+
+        edsm_message_write(init_response, &(peer->id), sizeof(uint32_t)); //respond with the ID of the peer
+        append_peerlist_to_message(init_response);
+
     } else {
         peer->id = recvd_peer_id;
     }
@@ -182,17 +193,21 @@ int read_and_handle_init_message(struct peer_information *peer) {
     edsm_socket_set_sockaddr_port(&peer->addr, peer_listen_port);
     DEBUG_MSG("Got a listen port of %d from the peer, set it in the peers struct", peer_listen_port);
 
+    if(fd_send_message(peer->sock_fd, MSG_TYPE_PROTO_INIT, init_response) == FAILURE) {
+        DEBUG_MSG("Sending init response failed");
+        goto free_and_return;
+    }
+    rtn = SUCCESS;
+free_and_return:
+    edsm_message_destroy(init_response);
     edsm_message_destroy(init_message);
-    return SUCCESS;
-
-    free_and_fail:
-        edsm_message_destroy(init_message);
-        return FAILURE;
+    return rtn;
 }
 // Fills in the peer variable with the value for the remote peer
 // Also reads the list of peers sent by the remote node and adds them
 // to the local set, connecting to them as well
 int read_and_handle_init_response(uint32_t *peer_id, int sock_fd) {
+    int rtn = FAILURE;
     edsm_message *init_response = read_message_from_socket(sock_fd);
     if(init_response == NULL) {
         DEBUG_MSG("Reading init response from peer failed");
@@ -202,7 +217,7 @@ int read_and_handle_init_response(uint32_t *peer_id, int sock_fd) {
     edsm_message_read(init_response, &msg_type, 4);
     if(msg_type != MSG_TYPE_PROTO_INIT) {
         DEBUG_MSG("Init response message recieved from peer was not init.");
-        goto free_and_fail;
+        goto free_and_return;
     }
 
     uint32_t recvd_peer_id;
@@ -211,24 +226,19 @@ int read_and_handle_init_response(uint32_t *peer_id, int sock_fd) {
     // send you an ID for itself of 0
     *peer_id = recvd_peer_id;
 
-    uint32_t new_my_id;
-    edsm_message_read(init_response, &new_my_id, sizeof(my_id));
     if(my_id == 0) { //if we do not have an ID yet, use the one the other peer assigned us
+        uint32_t new_my_id;
+        edsm_message_read(init_response, &new_my_id, sizeof(my_id));
         DEBUG_MSG("Got assigned an ID of %d", new_my_id);
         my_id = new_my_id;
-    } else { //it is a major error if the other peer thinks we have an ID other than the one we have, so segfault if that's not true
-        assert(my_id == new_my_id);
+        read_peerlist_from_message(init_response); //peers have been read in, but not connected to
     }
 
-    read_peerlist_from_message(init_response); //peers have been read in, but not connected to
+    rtn = SUCCESS;
 
+free_and_return:
     edsm_message_destroy(init_response);
-
-    return SUCCESS;
-
-    free_and_fail:
-        edsm_message_destroy(init_response);
-        return FAILURE;
+    return rtn;
 }
 
 uint32_t edsm_proto_local_id() {
@@ -271,6 +281,7 @@ void read_peerlist_from_message(edsm_message * msg) {
             new_peer->id = new_peer_id;
             edsm_message_read(msg, &new_peer->addr, sizeof(new_peer->addr));
             new_peer->sock_fd = -1;
+            DEBUG_MSG("Adding peer to hash %d", new_peer->id);
             HASH_ADD_INT(peers, id, new_peer);
         }
     }
@@ -512,16 +523,6 @@ int handle_new_connection(int server_sock)
         DEBUG_MSG("Handling init message from peer failed");
         goto close_and_fail;
     }
-    size_t init_response_size = 3*sizeof(uint32_t) + HASH_COUNT(peers) * (sizeof(struct sockaddr_storage) + sizeof(uint32_t)); //TODO maybe this size could be computed more gracefully
-    edsm_message *init_response = edsm_message_create(0, (int)init_response_size);
-    edsm_message_write(init_response, &my_id, sizeof(uint32_t)); // tell the peer this node's id
-    edsm_message_write(init_response, &(peer->id), sizeof(uint32_t)); //respond with the ID of the peer
-    append_peerlist_to_message(init_response);
-    if(fd_send_message(peer->sock_fd, MSG_TYPE_PROTO_INIT, init_response) == FAILURE) {
-        DEBUG_MSG("Sending init response failed");
-        goto close_and_fail;
-    }
-    edsm_message_destroy(init_response);
 
     // // All of our sockets will be non-blocking since they are handled by a
     // // single thread, and we cannot have one evil client hold up the rest.
