@@ -4,11 +4,13 @@ import jrpc
 import pygame
 import random
 import math
+import sys
 
 random.seed(0)
 
 server = None
-server = jrpc.service.SocketProxy(8764, host = "vector57.net", timeout = 5) #The server's listening port
+
+server = jrpc.service.SocketProxy(8764, host = sys.argv[1], timeout = 5) #The server's listening port
 
 pygame.init()
 screen_size = 700
