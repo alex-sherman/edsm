@@ -7,6 +7,8 @@ add_library(edsm SHARED
     dobj/reply_waiter.c
     message.c
     protocol.c
+    protocol_handshake.c
+    protocol_util.c
     socket.c
     task.c
     timing.c
