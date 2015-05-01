@@ -6,7 +6,7 @@
 int listen_sock;
 volatile int running;
 pthread_t wait_thread;
-uint32_t my_id= 0;
+uint32_t my_id= 1;
 unsigned short listen_port;
 
 struct peer_information *peers = NULL;
@@ -358,6 +358,7 @@ int edsm_proto_register_handler(int message_type, edsm_proto_message_handler_f h
 }
 
 int edsm_proto_group_join(char *hostname, unsigned short port){
+    my_id = 0;
     DEBUG_MSG("Joining group %s", hostname);
 
     struct peer_information * peer = initialize_peer();

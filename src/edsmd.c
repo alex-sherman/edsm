@@ -22,7 +22,6 @@ int main(int argc, char **argv)
     signal(SIGINT, shutdown_handler);
     signal(SIGTERM, shutdown_handler);
     unsigned short listen_port = atoi(argv[1]);
-    if(argc == 3) edsm_proto_set_local_id(1);
     edsm_proto_listener_init(listen_port);
 
     if(argc > 4){
