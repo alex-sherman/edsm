@@ -42,7 +42,7 @@ for x in range(point_count):
 body_count = len(points)
 
 
-bid, = server.init_simulation(points, 1000, 2, 1)
+bid, = server.init_simulation(points, 1000, 2, 1, 1)
 print bid
 
 while True:
@@ -53,7 +53,8 @@ while True:
         pygame.draw.circle(screen, (128,128,128), (int(point[0]), int(point[1])), int(math.pow(point[-1]/200, .5)), 0)
 
     pygame.display.update()
-    points = server.run_simulation(body_count, bid)
+    points, time = server.run_simulation(body_count, bid)
+    print time
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             pygame.quit()

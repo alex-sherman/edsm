@@ -17,6 +17,7 @@ struct simulation
     double timestep;
     uint32_t step_count;
     uint32_t micro_step_count;
+    uint32_t threads_per_node;
 };
 struct simulation current_sim;
 
@@ -100,6 +101,9 @@ extern json_object *init_simulation(json_object *params)
     tmp = json_object_array_get_idx(params, 3);
     current_sim.micro_step_count = json_object_get_int(tmp);
 
+    tmp = json_object_array_get_idx(params, 4);
+    current_sim.threads_per_node = json_object_get_int(tmp);
+
     current_sim.bodies_id = edsm_dobj_create();
     current_sim.client_barrier_id = edsm_dobj_create();
     current_sim.completion_barrier_id = edsm_dobj_create();
@@ -142,6 +146,19 @@ extern json_object *init_simulation(json_object *params)
     return output;
 }
 
+struct edsm_proto_peer_id *get_run_on(int threads_per_node){
+    struct edsm_proto_peer_id *peers = NULL;
+    struct edsm_proto_peer_id *output = NULL;
+    for(int i = 0; i < threads_per_node; i++)
+    {
+        peers = edsm_proto_get_peer_ids();
+        if(peers)
+            LL_APPEND(output, peers);
+        LL_APPEND(output, edsm_proto_peer_id_create(edsm_proto_local_id()));
+    }
+    return output;
+}
+
 extern json_object *run_simulation(json_object *params)
 {
     struct timeval time_start;
@@ -151,17 +168,16 @@ extern json_object *run_simulation(json_object *params)
     edsm_barrier *client_barrier = edsm_barrier_get(current_sim.client_barrier_id);
     edsm_barrier *completion_barrier = edsm_barrier_get(current_sim.completion_barrier_id);
 
-    struct edsm_proto_peer_id *peers = edsm_proto_get_peer_ids();
-    LL_APPEND(peers, edsm_proto_peer_id_create(edsm_proto_local_id()));
+    struct edsm_proto_peer_id *peers = get_run_on(current_sim.threads_per_node);
     int thread_count;
     struct edsm_proto_peer_id *peer;
     LL_COUNT(peers, peer, thread_count);
 
     edsm_barrier_arm(completion_barrier, peers);
-    peers = edsm_proto_get_peer_ids();
-    LL_APPEND(peers, edsm_proto_peer_id_create(edsm_proto_local_id()));
+    peers = get_run_on(current_sim.threads_per_node);
 
     peer = peers;
+    DEBUG_MSG("Thread count %d", thread_count);
     for(int i = 0; i < thread_count; i++)
     {
         uint32_t start = i * current_sim.body_count / thread_count;
@@ -186,7 +202,9 @@ extern json_object *run_simulation(json_object *params)
     t2 = get_elapsed_us(&time_start);
     DEBUG_MSG("Time %d + %d = %d", t1, t2-t1, t2);
 
+    json_object *output = json_object_new_array();
     json_object *j_bodies = json_object_new_array();
+    json_object_array_add(output, j_bodies);
     for(int i = 0; i < current_sim.body_count; i++)
     {
         body b = ((body *)bodies_region->head)[i];
@@ -197,8 +215,9 @@ extern json_object *run_simulation(json_object *params)
         json_object_array_put_idx(j_body, 1, json_object_new_double(b.y));
         json_object_array_put_idx(j_body, 2, json_object_new_double(b.mass));
     }
+    json_object_array_add(output, json_object_new_int(t2));
 
-    return j_bodies;
+    return output;
 }
 
 extern int up_call(struct edsm_task_information *task, uint32_t peer_id, uint32_t event, edsm_message *params)
