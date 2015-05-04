@@ -144,19 +144,22 @@ extern json_object *init_simulation(json_object *params)
 
 extern json_object *run_simulation(json_object *params)
 {
-
+    struct timeval time_start;
+    int64_t t1, t2;
+    get_monotonic_time(&time_start);
     edsm_memory_region *bodies_region = edsm_memory_region_get(sizeof(body) * current_sim.body_count, current_sim.bodies_id);
     edsm_barrier *client_barrier = edsm_barrier_get(current_sim.client_barrier_id);
     edsm_barrier *completion_barrier = edsm_barrier_get(current_sim.completion_barrier_id);
 
     struct edsm_proto_peer_id *peers = edsm_proto_get_peer_ids();
+    LL_APPEND(peers, edsm_proto_peer_id_create(edsm_proto_local_id()));
     int thread_count;
     struct edsm_proto_peer_id *peer;
     LL_COUNT(peers, peer, thread_count);
 
     edsm_barrier_arm(completion_barrier, peers);
     peers = edsm_proto_get_peer_ids();
-    edsm_barrier_arm(client_barrier, peers);
+    LL_APPEND(peers, edsm_proto_peer_id_create(edsm_proto_local_id()));
 
     peer = peers;
     for(int i = 0; i < thread_count; i++)
@@ -174,10 +177,14 @@ extern json_object *run_simulation(json_object *params)
         peer = peer->next;
     }
 
-    edsm_barrier_wait(client_barrier);
+    edsm_barrier_wait(completion_barrier);
+    edsm_barrier_arm(completion_barrier, peers);
     edsm_barrier_notify(client_barrier);
+    t1 = get_elapsed_us(&time_start);
 
     edsm_barrier_wait(completion_barrier);
+    t2 = get_elapsed_us(&time_start);
+    DEBUG_MSG("Time %d + %d = %d", t1, t2-t1, t2);
 
     json_object *j_bodies = json_object_new_array();
     for(int i = 0; i < current_sim.body_count; i++)
@@ -219,7 +226,6 @@ extern int up_call(struct edsm_task_information *task, uint32_t peer_id, uint32_
         memset(tmp_bodies, 0, sizeof(body) * count);
 
         edsm_barrier_arm(client_barrier, edsm_proto_peer_id_create(peer_id));
-        edsm_barrier_arm(completion_barrier, edsm_proto_peer_id_create(peer_id));
 
         DEBUG_MSG("Timestep %lf for %d steps %d %d", current_sim.timestep, current_sim.step_count, start, count);
         for(int t = 0; t < current_sim.step_count; t++)
@@ -235,7 +241,7 @@ extern int up_call(struct edsm_task_information *task, uint32_t peer_id, uint32_
                     current_sim.micro_step_count);
             }
         }
-        edsm_barrier_notify(client_barrier);
+        edsm_barrier_notify(completion_barrier);
         edsm_barrier_wait(client_barrier);
         memcpy((body *)bodies_region->head + start, tmp_bodies, sizeof(body) * count);
         edsm_barrier_notify(completion_barrier);

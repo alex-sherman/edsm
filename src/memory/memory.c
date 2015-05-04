@@ -36,7 +36,6 @@ void edsm_memory_init() {
 static void page_trap_handler(int sig, siginfo_t *si, void *unused)
 {
     long addr = (long)si->si_addr;
-    DEBUG_MSG("Got SIGSEGV at address: 0x%lx", addr);
     edsm_memory_region *region = find_region_for_addr(si->si_addr);
     if(region == NULL)
         segfault_handler(sig);
@@ -121,7 +120,7 @@ struct edsm_memory_page_twin *edsm_memory_twin_page(edsm_memory_region *region, 
 
     struct edsm_memory_page_twin *twin = edsm_memory_init_twin(addr);
 
-    DEBUG_MSG("Twinning the region at 0x%lx", (long) addr);
+    //DEBUG_MSG("Twinning the region at 0x%lx", (long) addr);
 
     int rc = mprotect(addr, 1, PROT_READ);
     assert(rc == 0);

@@ -62,8 +62,8 @@ int edsm_memory_handle_message(edsm_dobj *dobj, uint32_t peer_id, edsm_message *
 
             // if this page has not been used (twinned) we can do a shadow copy and swap
             if (dest_twin == NULL) {
-                DEBUG_MSG("Applying diff with %d sections at page 0x%lx, doing shadow page swap.", num_page_sections,
-                          change_destination);
+                //DEBUG_MSG("Applying diff with %d sections at page 0x%lx, doing shadow page swap.", num_page_sections,
+                //          change_destination);
                 // make the main memory page readable so we can shadow copy it
                 // if another thread tries to write to it, it will get into the signal handler
                 // and block on region_lock until we're finished applying the diff
@@ -219,7 +219,7 @@ int diff_region(edsm_memory_region *region, edsm_message *msg) {
     //write out the total count of pages
     *(uint32_t *)(msg->data+num_pages_offset) = num_diff_pages;
 
-    DEBUG_MSG("Diff created with %d pages", num_diff_pages);
+    //DEBUG_MSG("Diff created with %d pages", num_diff_pages);
     pthread_rwlock_unlock(&region->region_lock);
     return num_diff_pages;
 }
